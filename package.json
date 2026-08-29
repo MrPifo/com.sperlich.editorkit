@@ -1,0 +1,22 @@
+{
+  "name": "com.sperlich.editorkit",
+  "version": "1.0.0",
+  "displayName": "Sperlich EditorKit",
+  "description": "Shared editor-UI building blocks for Sperlich tools: common editor theme, reusable UIToolkit widgets and a pill toggle.",
+  "unity": "6000.0",
+  "author": {
+    "name": "Lion Sperlich",
+    "url": "https://github.com/MrPifo"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/MrPifo/com.sperlich.editorkit.git"
+  },
+  "keywords": [
+    "Sperlich",
+    "editor",
+    "uitoolkit",
+    "inspector"
+  ]
+}
