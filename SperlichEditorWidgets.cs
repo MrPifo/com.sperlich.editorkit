@@ -2,13 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEditor;
+using UnityEditor.UIElements;
 using UnityEngine;
 using UnityEngine.UIElements;
 
 namespace Sperlich.EditorKit {
 
 	/// <summary>Wiederverwendbare UI-Toolkit-Bausteine im Sperlich-Editor-Stil, gemeinsam für alle Sperlich-Package-Inspektoren.</summary>
-	public static class SperlichEditorWidgets {
+	public static partial class SperlichEditorWidgets {
 
 		// Das interne "defaultCursorId"-Feld heißt je nach Unity-Version leicht anders — daher wird stattdessen
 		// nach dem einzigen privaten int-Feld des Cursor-Structs gesucht (neben Texture2D texture und Vector2 hotspot
@@ -103,7 +104,12 @@ namespace Sperlich.EditorKit {
 		}
 
 		/// <summary>Kollabierbare Sektion mit handgezeichnetem ▼/▶-Pfeil statt nativem Foldout (Sperlich-Editor-Konvention, siehe AnimSequencerEditor).</summary>
-		public static (VisualElement header, VisualElement body, Label arrow) CreateChevronSection(string title, bool expanded, Color headerBg, Color? bodyBg = null) {
+		/// <param name="persistKey">Wenn gesetzt: der Auf-/Zu-Zustand wird unter diesem Schlüssel (+ Titel) in
+		/// <see cref="EditorPrefs"/> gemerkt, sodass er einen Inspector-Rebuild (Undo/Redo, Domain-Reload) übersteht.</param>
+		public static (VisualElement header, VisualElement body, Label arrow) CreateChevronSection(string title, bool expanded, Color headerBg, Color? bodyBg = null, string persistKey = null) {
+			string prefKey = persistKey != null ? "Sperlich.Section/" + persistKey + "/" + title : null;
+			if (prefKey != null) expanded = EditorPrefs.GetBool(prefKey, expanded);
+
 			var header = new VisualElement { pickingMode = PickingMode.Position };
 			header.style.flexDirection = UnityEngine.UIElements.FlexDirection.Row;
 			header.style.alignItems = Align.Center;
@@ -135,6 +141,7 @@ namespace Sperlich.EditorKit {
 				bool nowExpanded = body.style.display == DisplayStyle.None;
 				body.style.display = nowExpanded ? DisplayStyle.Flex : DisplayStyle.None;
 				arrow.text = nowExpanded ? "▼" : "▶";
+				if (prefKey != null) EditorPrefs.SetBool(prefKey, nowExpanded);
 			});
 
 			return (header, body, arrow);
@@ -273,8 +280,15 @@ namespace Sperlich.EditorKit {
 			return (track, Refresh);
 		}
 
-		/// <summary>Flaches, klickbares Feld, das ein Popup mit allen Enum-Werten im Sperlich-Stil öffnet (Haken beim aktiven Eintrag, Hover, Klick-außerhalb schließt) — ersetzt Unitys native Enum-Dropdowns.</summary>
-		public static VisualElement CreateEnumDropdown(SerializedProperty enumProp, Color? accent = null) {
+		/// <summary>Flaches, klickbares Dropdown im Sperlich-Stil (Haken beim aktiven Eintrag, Hover, schließt
+		/// bei Klick außerhalb ODER wenn der Editor-Fokus das Fenster wechselt). Generischer Kern hinter
+		/// <see cref="CreateEnumDropdown"/> und <see cref="CreateAssetDropdown{T}"/>.</summary>
+		/// <param name="getCount">Anzahl Optionen.</param>
+		/// <param name="getLabel">Anzeigetext für Option <c>index</c>.</param>
+		/// <param name="getSelected">Index der aktuell gewählten Option (-1 = keine).</param>
+		/// <param name="onSelect">Wird mit dem geklickten Index aufgerufen; muss den Wert selbst persistieren.</param>
+		public static VisualElement BuildDropdown(System.Func<int> getCount, System.Func<int, string> getLabel,
+			System.Func<int> getSelected, System.Action<int> onSelect, Color? accent = null) {
 			Color accentColor = accent ?? SperlichEditorTheme.ButtonAccent;
 
 			var field = new VisualElement { pickingMode = PickingMode.Position };
@@ -308,24 +322,11 @@ namespace Sperlich.EditorKit {
 			field.Add(valueLabel);
 			field.Add(chevron);
 
-			int GetOptionCount() => enumProp.enumNames?.Length ?? 0;
-
-			// enumDisplayNames ist manchmal leer/unzuverlässig befüllt — enumNames (rohe C#-Membernamen) ist das garantiert nicht,
-			// wird hier über NicifyVariableName ("FullParentSize" -> "Full Parent Size") lesbar gemacht.
-			string GetOptionLabel(int index) {
-				var display = enumProp.enumDisplayNames;
-				if (display != null && index >= 0 && index < display.Length && string.IsNullOrEmpty(display[index]) == false) {
-					return display[index];
-				}
-				var raw = enumProp.enumNames;
-				if (raw != null && index >= 0 && index < raw.Length) {
-					return ObjectNames.NicifyVariableName(raw[index]);
-				}
-				return "—";
-			}
+			int GetOptionCount() => getCount();
+			string GetOptionLabel(int index) => getLabel(index);
 
 			void RefreshLabel() {
-				int idx = enumProp.enumValueIndex;
+				int idx = getSelected();
 				valueLabel.text = idx >= 0 && idx < GetOptionCount() ? GetOptionLabel(idx) : "—";
 			}
 			RefreshLabel();
@@ -334,6 +335,10 @@ namespace Sperlich.EditorKit {
 			VisualElement dismissTree = null;
 			EventCallback<PointerDownEvent> dismissHandler = null;
 			EventCallback<WheelEvent> wheelDismissHandler = null;
+			// Fires while the popup is open: closes it as soon as the editor focus leaves this window
+			// (a click into the Scene / Game / Hierarchy / Project view etc.). The in-panel PointerDown
+			// handler above only sees clicks inside the same inspector.
+			EditorApplication.CallbackFunction focusWatch = null;
 
 			void ClosePopup() {
 				openPopup?.RemoveFromHierarchy();
@@ -345,6 +350,7 @@ namespace Sperlich.EditorKit {
 				dismissTree = null;
 				dismissHandler = null;
 				wheelDismissHandler = null;
+				if (focusWatch != null) { EditorApplication.update -= focusWatch; focusWatch = null; }
 			}
 
 			void OpenPopup() {
@@ -355,11 +361,16 @@ namespace Sperlich.EditorKit {
 				var popup = CreateBox(4, SperlichEditorTheme.BorderStrong);
 				popup.style.position = Position.Absolute;
 				popup.style.backgroundColor = SperlichEditorTheme.BgPanel;
+				popup.style.maxHeight = 320;
+
+				// long option lists (e.g. every FontDefinition in the project) scroll instead of running off-screen
+				var optionHost = new ScrollView(ScrollViewMode.Vertical);
+				popup.Add(optionHost);
 
 				int optionCount = GetOptionCount();
 				for (int i = 0; i < optionCount; i++) {
 					int index = i;
-					bool selected = index == enumProp.enumValueIndex;
+					bool selected = index == getSelected();
 
 					var row = new VisualElement { pickingMode = PickingMode.Position };
 					row.style.flexDirection = UnityEngine.UIElements.FlexDirection.Row;
@@ -380,15 +391,12 @@ namespace Sperlich.EditorKit {
 					row.RegisterCallback<MouseLeaveEvent>(_ => row.style.backgroundColor = Color.clear);
 					row.RegisterCallback<ClickEvent>(evt => {
 						evt.StopPropagation();
-						if (enumProp.enumValueIndex != index) {
-							enumProp.enumValueIndex = index;
-							enumProp.serializedObject.ApplyModifiedProperties();
-							RefreshLabel();
-						}
+						onSelect(index);
+						RefreshLabel();
 						ClosePopup();
 					});
 
-					popup.Add(row);
+					optionHost.Add(row);
 				}
 
 				panelRoot.Add(popup);
@@ -414,12 +422,208 @@ namespace Sperlich.EditorKit {
 					dismissTree.RegisterCallback(dismissHandler, TrickleDown.TrickleDown);
 					dismissTree.RegisterCallback(wheelDismissHandler, TrickleDown.TrickleDown);
 				}
+
+				EditorWindow triggerWindow = EditorWindow.focusedWindow;
+				focusWatch = () => {
+					if (openPopup == null) return;
+					if (EditorWindow.focusedWindow != triggerWindow) ClosePopup();
+				};
+				EditorApplication.update += focusWatch;
 			}
 
 			field.RegisterCallback<ClickEvent>(_ => OpenPopup());
 			field.RegisterCallback<DetachFromPanelEvent>(_ => ClosePopup());
 
 			return field;
+		}
+
+		/// <summary>Flaches Enum-Dropdown im Sperlich-Stil — ersetzt Unitys native Enum-Popups.</summary>
+		public static VisualElement CreateEnumDropdown(SerializedProperty enumProp, Color? accent = null, Action<int> onChanged = null) {
+			string LabelFor(int index) {
+				var display = enumProp.enumDisplayNames;
+				if (display != null && index >= 0 && index < display.Length && string.IsNullOrEmpty(display[index]) == false) return display[index];
+				var raw = enumProp.enumNames;
+				if (raw != null && index >= 0 && index < raw.Length) return ObjectNames.NicifyVariableName(raw[index]);
+				return "—";
+			}
+			return BuildDropdown(
+				() => enumProp.enumNames?.Length ?? 0,
+				LabelFor,
+				() => enumProp.enumValueIndex,
+				i => {
+					if (enumProp.enumValueIndex == i) return;
+					enumProp.enumValueIndex = i;
+					enumProp.serializedObject.ApplyModifiedProperties();
+					onChanged?.Invoke(i);
+				},
+				accent);
+		}
+
+		/// <summary>Flaches Dropdown, das alle Assets vom Typ <typeparamref name="T"/> im Projekt listet
+		/// (optional mit "None" an erster Stelle) und die Auswahl in ein Object-Reference-Property schreibt.
+		/// Die Liste wird bei jedem Öffnen neu eingelesen, damit frisch angelegte Assets sofort auftauchen.</summary>
+		public static VisualElement CreateAssetDropdown<T>(SerializedProperty objectProp, Color? accent = null, bool includeNone = true)
+			where T : UnityEngine.Object {
+
+			var assets = new System.Collections.Generic.List<T>();
+			void Rescan() {
+				assets.Clear();
+				foreach (string guid in AssetDatabase.FindAssets("t:" + typeof(T).Name)) {
+					var a = AssetDatabase.LoadAssetAtPath<T>(AssetDatabase.GUIDToAssetPath(guid));
+					if (a != null) assets.Add(a);
+				}
+				assets.Sort((x, y) => string.Compare(x.name, y.name, System.StringComparison.OrdinalIgnoreCase));
+			}
+			Rescan();
+
+			int Offset() => includeNone ? 1 : 0;
+			int Count() => assets.Count + Offset();
+			string LabelFor(int i) {
+				if (includeNone && i == 0) return "None";
+				int ai = i - Offset();
+				return ai >= 0 && ai < assets.Count ? assets[ai].name : "—";
+			}
+			int Selected() {
+				var cur = objectProp.objectReferenceValue as T;
+				if (cur == null) return includeNone ? 0 : -1;
+				int ai = assets.IndexOf(cur);
+				return ai >= 0 ? ai + Offset() : -1;
+			}
+			void Pick(int i) {
+				int ai = i - Offset();
+				objectProp.objectReferenceValue = includeNone && i == 0 ? null
+					: (ai >= 0 && ai < assets.Count ? assets[ai] : null);
+				objectProp.serializedObject.ApplyModifiedProperties();
+			}
+
+			VisualElement field = BuildDropdown(Count, LabelFor, Selected, Pick, accent);
+			// re-read the project list just before the popup opens (pointer-down fires before the open click)
+			field.RegisterCallback<PointerDownEvent>(_ => Rescan(), TrickleDown.TrickleDown);
+			return field;
+		}
+
+		/// <summary>Zeile aus kleinen Umschalt-Buttons für ein <c>[Flags]</c>-Enum-Property (wie TMPs "Font Style"):
+		/// mehrere Bits gleichzeitig aktiv, aktive Buttons mit Akzent-Rahmen. <paramref name="exclusiveGroups"/>
+		/// listet Bit-Gruppen, in denen immer nur eins gesetzt sein darf (z.B. Uppercase / Lowercase / SmallCaps).</summary>
+		/// <param name="separatorsBefore">Bit-Indizes, vor denen ein dünner senkrechter Trenner eingefügt wird
+		/// (z.B. um Groß-/Kleinschreibung von Bold/Italic optisch abzusetzen).</param>
+		public static VisualElement CreateFlagButtons(SerializedProperty flagsProp, string[] captions, string[] tooltips,
+			Color? accent = null, int[][] exclusiveGroups = null, int[] separatorsBefore = null) {
+
+			Color accentColor = accent ?? SperlichEditorTheme.ButtonAccent;
+			var bar = new VisualElement { style = { flexDirection = UnityEngine.UIElements.FlexDirection.Row, flexWrap = Wrap.Wrap } };
+			int n = captions.Length;
+			var btns = new VisualElement[n];
+
+			void Refresh() {
+				int mask = flagsProp.intValue;
+				for (int i = 0; i < n; i++) {
+					bool on = (mask & (1 << i)) != 0;
+					btns[i].style.backgroundColor = on ? new Color(accentColor.r, accentColor.g, accentColor.b, 0.16f) : SperlichEditorTheme.ButtonBg;
+					SetBorderColor(btns[i], on ? accentColor : SperlichEditorTheme.ButtonBorder);
+					((Label)btns[i][0]).style.color = on ? accentColor : SperlichEditorTheme.TextSecondary;
+				}
+			}
+
+			for (int i = 0; i < n; i++) {
+				int bit = i;
+				if (separatorsBefore != null && System.Array.IndexOf(separatorsBefore, i) >= 0) {
+					bar.Add(new VisualElement {
+						style = {
+							width = 1, height = 14, backgroundColor = SperlichEditorTheme.BorderStrong,
+							marginLeft = 3, marginRight = 6, alignSelf = Align.Center,
+						}
+					});
+				}
+				var b = new VisualElement { pickingMode = PickingMode.Position, tooltip = tooltips != null && i < tooltips.Length ? tooltips[i] : null };
+				b.style.height = 20;
+				b.style.minWidth = 24;
+				b.style.marginRight = 3;
+				b.style.marginBottom = 2;
+				b.style.paddingLeft = 6;
+				b.style.paddingRight = 6;
+				b.style.borderTopWidth = 1;
+				b.style.borderBottomWidth = 1;
+				b.style.borderLeftWidth = 1;
+				b.style.borderRightWidth = 1;
+				b.style.justifyContent = Justify.Center;
+				b.style.alignItems = Align.Center;
+				SetRadius(b, 3);
+				SetHoverCursor(b, MouseCursor.Link);
+				b.Add(new Label(captions[i]) { pickingMode = PickingMode.Ignore, style = { fontSize = 10, unityFontStyleAndWeight = FontStyle.Bold } });
+
+				b.RegisterCallback<ClickEvent>(_ => {
+					int mask = flagsProp.intValue;
+					bool turningOn = (mask & (1 << bit)) == 0;
+					if (turningOn && exclusiveGroups != null) {
+						foreach (int[] group in exclusiveGroups) {
+							if (System.Array.IndexOf(group, bit) < 0) continue;
+							foreach (int other in group) mask &= ~(1 << other);
+						}
+					}
+					mask = turningOn ? (mask | (1 << bit)) : (mask & ~(1 << bit));
+					flagsProp.intValue = mask;
+					flagsProp.serializedObject.ApplyModifiedProperties();
+					Refresh();
+				});
+
+				btns[i] = b;
+				bar.Add(b);
+			}
+
+			bar.TrackPropertyValue(flagsProp, _ => Refresh());
+			Refresh();
+			return bar;
+		}
+
+		/// <summary>Kompaktes Feld für Feld-Cluster: winziges Caption-Label + schmales PropertyField ohne
+		/// eigenes Label. <paramref name="captionAbove"/> = Caption über dem Feld (wie Unitys Vector-Felder),
+		/// sonst links daneben. Zusammen mit <see cref="CreateFieldCluster"/> für Reihen wie "Margins".</summary>
+		public static VisualElement CreateCompactField(string caption, SerializedProperty prop, bool captionAbove = false) {
+			var wrap = new VisualElement {
+				style = {
+					flexDirection = captionAbove ? UnityEngine.UIElements.FlexDirection.Column : UnityEngine.UIElements.FlexDirection.Row,
+					alignItems = captionAbove ? Align.Stretch : Align.Center,
+					marginRight = 6,
+				}
+			};
+			var cap = new Label(caption) {
+				style = {
+					fontSize = 10, color = SperlichEditorTheme.TextMuted,
+					marginRight = captionAbove ? 0 : 5, marginBottom = captionAbove ? 1 : 0,
+					flexShrink = 0, unityTextAlign = TextAnchor.MiddleLeft,
+				}
+			};
+			VisualElement field = null;
+			if (prop != null) {
+				if (prop.propertyType == SerializedPropertyType.Float || prop.propertyType == SerializedPropertyType.Integer) {
+					field = CreateDragNumberField(prop);   // keeps the drag-to-scrub grip in compact clusters
+				} else {
+					var pf = new PropertyField(prop, " ");
+					SperlichFieldColumn.HideInternalLabel(pf);
+					field = pf;
+				}
+				field.style.flexGrow = 1;
+			}
+			wrap.Add(cap);
+			if (field != null) wrap.Add(field);
+			return wrap;
+		}
+
+		/// <summary>Reihe aus mehreren <see cref="CreateCompactField"/>-Feldern; bricht um, sobald der Platz
+		/// nicht mehr für alle reicht (<paramref name="minFieldWidth"/> pro Feld). Für Margins-/Spacing-Cluster.</summary>
+		public static VisualElement CreateFieldCluster(int minFieldWidth, params VisualElement[] compactFields) {
+			var row = new VisualElement {
+				style = { flexDirection = UnityEngine.UIElements.FlexDirection.Row, flexWrap = Wrap.Wrap, alignItems = Align.Center, flexGrow = 1 }
+			};
+			foreach (var f in compactFields) {
+				f.style.flexGrow = 1;
+				f.style.flexShrink = 1;
+				f.style.flexBasis = 0;
+				f.style.minWidth = minFieldWidth;
+				row.Add(f);
+			}
+			return row;
 		}
 
 		/// <summary>Sucht den obersten Vorfahren, der noch Editor-Styling (u.a. die Font-Definition) trägt — das InspectorElement bzw. ersatzweise das oberste Inhalts-Element unter der Panel-Wurzel. Popups/Overlays MÜSSEN hier eingehängt werden, nicht direkt in <c>panel.visualTree</c>: die nackte Panel-Wurzel vererbt keinen Font, wodurch Text im Overlay unsichtbar bleibt (ohne Fehlermeldung).</summary>
