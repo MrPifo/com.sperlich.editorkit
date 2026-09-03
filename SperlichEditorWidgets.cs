@@ -91,7 +91,7 @@ namespace Sperlich.EditorKit {
 
 		public static Label CreateBadge(string text, Color bg, Color? textColor = null) {
 			var badge = new Label(text);
-			badge.style.fontSize = 9;
+			badge.style.fontSize = 10;
 			badge.style.unityFontStyleAndWeight = FontStyle.Bold;
 			badge.style.color = textColor ?? SperlichEditorTheme.TextPrimary;
 			badge.style.backgroundColor = bg;
@@ -124,13 +124,13 @@ namespace Sperlich.EditorKit {
 			header.RegisterCallback<MouseLeaveEvent>(_ => header.style.backgroundColor = headerBg);
 
 			var arrow = new Label(expanded ? "▼" : "▶");
-			arrow.style.fontSize = 9;
+			arrow.style.fontSize = 10;
 			arrow.style.width = 12;
 			arrow.style.color = SperlichEditorTheme.TextMuted;
 			header.Add(arrow);
 
 			var titleLabel = new Label(title);
-			titleLabel.style.fontSize = 10;
+			titleLabel.style.fontSize = 11;
 			titleLabel.style.unityFontStyleAndWeight = FontStyle.Bold;
 			titleLabel.style.color = SperlichEditorTheme.TextSecondary;
 			header.Add(titleLabel);
@@ -362,6 +362,20 @@ namespace Sperlich.EditorKit {
 				popup.style.position = Position.Absolute;
 				popup.style.backgroundColor = SperlichEditorTheme.BgPanel;
 				popup.style.maxHeight = 320;
+				if (EditorStyles.label?.font != null) {
+					popup.style.unityFont = EditorStyles.label.font;
+				}
+
+				// Stylesheets vom Quell-Element vererben, damit Fonts und Themes immer greifen
+				for (var p = field; p != null; p = p.hierarchy.parent) {
+					int count = p.styleSheets.count;
+					for (int s = 0; s < count; s++) {
+						var sheet = p.styleSheets[s];
+						if (!popup.styleSheets.Contains(sheet)) {
+							popup.styleSheets.Add(sheet);
+						}
+					}
+				}
 
 				// long option lists (e.g. every FontDefinition in the project) scroll instead of running off-screen
 				var optionHost = new ScrollView(ScrollViewMode.Vertical);
@@ -382,8 +396,28 @@ namespace Sperlich.EditorKit {
 					ApplyColorTransition(row, 80, "background-color");
 					SetHoverCursor(row, MouseCursor.Link);
 
-					var check = new Label(selected ? "✓" : "") { pickingMode = PickingMode.Ignore, style = { fontSize = 10, color = accentColor, width = 14, flexShrink = 0 } };
-					var label = new Label(GetOptionLabel(i)) { pickingMode = PickingMode.Ignore, style = { fontSize = 11, color = selected ? SperlichEditorTheme.TextPrimary : SperlichEditorTheme.TextSecondary, flexGrow = 1, whiteSpace = WhiteSpace.NoWrap, overflow = Overflow.Hidden, textOverflow = TextOverflow.Ellipsis } };
+					var check = new Label(selected ? "✓" : "") {
+						pickingMode = PickingMode.Ignore,
+						style = {
+							fontSize = 10,
+							color = accentColor,
+							width = 14,
+							flexShrink = 0,
+							unityFont = EditorStyles.label?.font
+						}
+					};
+					var label = new Label(GetOptionLabel(i)) {
+						pickingMode = PickingMode.Ignore,
+						style = {
+							fontSize = 11,
+							color = selected ? SperlichEditorTheme.TextPrimary : SperlichEditorTheme.TextSecondary,
+							flexGrow = 1,
+							whiteSpace = WhiteSpace.NoWrap,
+							overflow = Overflow.Hidden,
+							textOverflow = TextOverflow.Ellipsis,
+							unityFont = EditorStyles.label?.font
+						}
+					};
 					row.Add(check);
 					row.Add(label);
 
@@ -400,12 +434,59 @@ namespace Sperlich.EditorKit {
 				}
 
 				panelRoot.Add(popup);
+				popup.BringToFront();
 
+				const float margin = 4f;
 				Rect fieldBound = field.worldBound;
 				Vector2 topLeft = panelRoot.WorldToLocal(new Vector2(fieldBound.xMin, fieldBound.yMax));
-				popup.style.left = topLeft.x;
+				Vector2 topRight = panelRoot.WorldToLocal(new Vector2(fieldBound.xMax, fieldBound.yMax));
+
+				float popupMinWidth = Mathf.Max(fieldBound.width, 140f);
+				popup.style.minWidth = popupMinWidth;
+
+				float panelWidth = panelRoot.contentRect.width;
+				float targetLeft = topLeft.x;
+				if (panelWidth > 0f && targetLeft + popupMinWidth > panelWidth - margin) {
+					targetLeft = Mathf.Max(margin, topRight.x - popupMinWidth);
+					if (targetLeft + popupMinWidth > panelWidth - margin) {
+						targetLeft = Mathf.Max(margin, panelWidth - popupMinWidth - margin);
+					}
+				}
+
+				popup.style.left = targetLeft;
 				popup.style.top = topLeft.y + 2;
-				popup.style.minWidth = Mathf.Max(fieldBound.width, 140f);
+
+				popup.RegisterCallback<GeometryChangedEvent>(evt => {
+					if (openPopup != popup || panelRoot == null) return;
+					float curPanelWidth = panelRoot.contentRect.width;
+					float curPanelHeight = panelRoot.contentRect.height;
+					if (curPanelWidth <= 0f || curPanelHeight <= 0f) return;
+
+					float actualWidth = evt.newRect.width;
+					float actualHeight = evt.newRect.height;
+
+					Rect curFieldBound = field.worldBound;
+					Vector2 curTopLeft = panelRoot.WorldToLocal(new Vector2(curFieldBound.xMin, curFieldBound.yMax));
+					Vector2 curTopRight = panelRoot.WorldToLocal(new Vector2(curFieldBound.xMax, curFieldBound.yMax));
+					Vector2 curFieldTop = panelRoot.WorldToLocal(new Vector2(curFieldBound.xMin, curFieldBound.yMin));
+
+					float newLeft = curTopLeft.x;
+					if (newLeft + actualWidth > curPanelWidth - margin) {
+						newLeft = Mathf.Max(margin, curTopRight.x - actualWidth);
+						if (newLeft + actualWidth > curPanelWidth - margin) {
+							newLeft = Mathf.Max(margin, curPanelWidth - actualWidth - margin);
+						}
+					}
+					popup.style.left = newLeft;
+
+					float newTop = curTopLeft.y + 2;
+					if (newTop + actualHeight > curPanelHeight - margin) {
+						if (curFieldTop.y - 2 - actualHeight >= margin || curFieldTop.y > (curPanelHeight - newTop)) {
+							newTop = Mathf.Max(margin, curFieldTop.y - actualHeight - 2);
+						}
+					}
+					popup.style.top = newTop;
+				});
 
 				openPopup = popup;
 
@@ -446,7 +527,7 @@ namespace Sperlich.EditorKit {
 				if (raw != null && index >= 0 && index < raw.Length) return ObjectNames.NicifyVariableName(raw[index]);
 				return "—";
 			}
-			return BuildDropdown(
+			var dd = BuildDropdown(
 				() => enumProp.enumNames?.Length ?? 0,
 				LabelFor,
 				() => enumProp.enumValueIndex,
@@ -457,6 +538,11 @@ namespace Sperlich.EditorKit {
 					onChanged?.Invoke(i);
 				},
 				accent);
+			dd.TrackPropertyValue(enumProp, _ => {
+				Label valLbl = dd.Q<Label>();
+				if (valLbl != null) valLbl.text = LabelFor(enumProp.enumValueIndex);
+			});
+			return dd;
 		}
 
 		/// <summary>Flaches Dropdown, das alle Assets vom Typ <typeparamref name="T"/> im Projekt listet
@@ -580,20 +666,6 @@ namespace Sperlich.EditorKit {
 		/// eigenes Label. <paramref name="captionAbove"/> = Caption über dem Feld (wie Unitys Vector-Felder),
 		/// sonst links daneben. Zusammen mit <see cref="CreateFieldCluster"/> für Reihen wie "Margins".</summary>
 		public static VisualElement CreateCompactField(string caption, SerializedProperty prop, bool captionAbove = false) {
-			var wrap = new VisualElement {
-				style = {
-					flexDirection = captionAbove ? UnityEngine.UIElements.FlexDirection.Column : UnityEngine.UIElements.FlexDirection.Row,
-					alignItems = captionAbove ? Align.Stretch : Align.Center,
-					marginRight = 6,
-				}
-			};
-			var cap = new Label(caption) {
-				style = {
-					fontSize = 10, color = SperlichEditorTheme.TextMuted,
-					marginRight = captionAbove ? 0 : 5, marginBottom = captionAbove ? 1 : 0,
-					flexShrink = 0, unityTextAlign = TextAnchor.MiddleLeft,
-				}
-			};
 			VisualElement field = null;
 			if (prop != null) {
 				if (prop.propertyType == SerializedPropertyType.Float || prop.propertyType == SerializedPropertyType.Integer) {
@@ -603,10 +675,31 @@ namespace Sperlich.EditorKit {
 					SperlichFieldColumn.HideInternalLabel(pf);
 					field = pf;
 				}
-				field.style.flexGrow = 1;
 			}
+			return CreateCompactField(caption, field, captionAbove);
+		}
+
+		/// <summary>Kompaktes Feld für Feld-Cluster mit benutzerdefiniertem Control.</summary>
+		public static VisualElement CreateCompactField(string caption, VisualElement customControl, bool captionAbove = false) {
+			var wrap = new VisualElement {
+				style = {
+					flexDirection = captionAbove ? UnityEngine.UIElements.FlexDirection.Column : UnityEngine.UIElements.FlexDirection.Row,
+					alignItems = captionAbove ? Align.Stretch : Align.Center,
+					marginRight = 6,
+				}
+			};
+			var cap = new Label(caption) {
+				style = {
+					fontSize = 11, color = SperlichEditorTheme.TextMuted,
+					marginRight = captionAbove ? 0 : 5, marginBottom = captionAbove ? 1 : 0,
+					flexShrink = 0, unityTextAlign = TextAnchor.MiddleLeft,
+				}
+			};
 			wrap.Add(cap);
-			if (field != null) wrap.Add(field);
+			if (customControl != null) {
+				customControl.style.flexGrow = 1;
+				wrap.Add(customControl);
+			}
 			return wrap;
 		}
 
@@ -626,14 +719,14 @@ namespace Sperlich.EditorKit {
 			return row;
 		}
 
-		/// <summary>Sucht den obersten Vorfahren, der noch Editor-Styling (u.a. die Font-Definition) trägt — das InspectorElement bzw. ersatzweise das oberste Inhalts-Element unter der Panel-Wurzel. Popups/Overlays MÜSSEN hier eingehängt werden, nicht direkt in <c>panel.visualTree</c>: die nackte Panel-Wurzel vererbt keinen Font, wodurch Text im Overlay unsichtbar bleibt (ohne Fehlermeldung).</summary>
+		/// <summary>Sucht die Panel-Wurzel des EditorWindows, damit Overlays und Popups über allen Inspector-Elementen (inkl. IMGUI und Footern) gezeichnet werden.</summary>
 		public static VisualElement ResolveOverlayRoot(VisualElement from) {
+			if (from.panel != null && from.panel.visualTree != null) {
+				return from.panel.visualTree;
+			}
 			VisualElement contentRoot = from;
-			for (var p = from.hierarchy.parent; p != null && p.hierarchy.parent != null; p = p.hierarchy.parent) {
+			for (var p = from.hierarchy.parent; p != null; p = p.hierarchy.parent) {
 				contentRoot = p;
-				if (p.GetType().Name == "InspectorElement") {
-					return p;
-				}
 			}
 			return contentRoot;
 		}

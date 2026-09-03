@@ -63,17 +63,81 @@ namespace Sperlich.EditorKit {
 			return row;
 		}
 
+		/// <summary>Zeile mit einem Float-Slider und integriertem Zahlen-Eingabefeld.</summary>
+		public VisualElement Slider(SerializedProperty prop, string label = null, float min = 0f, float max = 1f, int indent = 0) {
+			if (prop == null) return new VisualElement();
+			var s = new Slider(min, max) { showInputField = true, style = { flexGrow = 1 } };
+			s.BindProperty(prop);
+			HideInternalLabel(s);
+			return Row(label ?? prop.displayName, s, indent);
+		}
+
+		/// <summary>Zeile mit einem Integer-Slider und integriertem Zahlen-Eingabefeld (snappt nur auf ganze Zahlen, unterstützt Int- und Float-Properties).</summary>
+		public VisualElement Slider(SerializedProperty prop, string label, int min, int max, int indent = 0) {
+			return SliderInt(prop, label, min, max, indent);
+		}
+
+		/// <summary>Zeile mit einem Integer-Slider und integriertem Zahlen-Eingabefeld (snappt nur auf ganze Zahlen, unterstützt Int- und Float-Properties).</summary>
+		public VisualElement SliderInt(SerializedProperty prop, string label = null, int min = 0, int max = 10, int indent = 0) {
+			if (prop == null) return new VisualElement();
+			var s = new SliderInt(min, max) { showInputField = true, style = { flexGrow = 1 } };
+			if (prop.propertyType == SerializedPropertyType.Integer) {
+				s.BindProperty(prop);
+			} else {
+				s.value = Mathf.RoundToInt(prop.floatValue);
+				s.RegisterValueChangedCallback(evt => {
+					prop.floatValue = evt.newValue;
+					prop.serializedObject.ApplyModifiedProperties();
+				});
+				s.TrackPropertyValue(prop, _ => {
+					int target = Mathf.RoundToInt(prop.floatValue);
+					if (s.value != target) s.value = target;
+				});
+			}
+			HideInternalLabel(s);
+			return Row(label ?? prop.displayName, s, indent);
+		}
+
+		/// <summary>Zeile mit einem Drag-Zahlenfeld und optionaler Min/Max-Begrenzung.</summary>
+		public VisualElement DragNumber(SerializedProperty prop, string label = null, float min = float.MinValue, float max = float.MaxValue, int indent = 0) {
+			if (prop == null) return new VisualElement();
+			return Row(label ?? prop.displayName, SperlichEditorWidgets.CreateDragNumberField(prop, 1f, min, max), indent);
+		}
+
 		/// <summary>Zeile um ein <see cref="SerializedProperty"/>. Das interne Feld-Label wird auf die
 		/// Spaltenbreite gebracht und mit <paramref name="label"/> beschriftet (bei Zahlenfeldern bleibt es
 		/// so als Ziehgriff nutzbar). Für aufklappbare/verschachtelte Properties stattdessen <see cref="Raw"/>.</summary>
 		public VisualElement Property(SerializedProperty prop, string label = null, int indent = 0) {
 			if (prop == null) return new VisualElement();
 
-			// plain number fields get the drag-to-scrub grip; Range fields keep Unity's slider
-			bool plainNumber = (prop.propertyType == SerializedPropertyType.Float || prop.propertyType == SerializedPropertyType.Integer)
-				&& SperlichEditorWidgets.PropertyHasRange(prop) == false;
+			if (SperlichEditorWidgets.TryGetRange(prop, out float rMin, out float rMax)) {
+				if (prop.propertyType == SerializedPropertyType.Integer) {
+					return Slider(prop, label, (int)rMin, (int)rMax, indent);
+				}
+				return Slider(prop, label, rMin, rMax, indent);
+			}
+
+			// plain number fields get the drag-to-scrub grip
+			bool plainNumber = (prop.propertyType == SerializedPropertyType.Float || prop.propertyType == SerializedPropertyType.Integer);
 			if (plainNumber) {
 				return Row(label ?? prop.displayName, SperlichEditorWidgets.CreateDragNumberField(prop), indent);
+			}
+
+			if (prop.propertyType == SerializedPropertyType.Boolean) {
+				var pill = new PillToggle(prop.boolValue);
+				pill.Clicked += () => {
+					prop.boolValue = !prop.boolValue;
+					prop.serializedObject.ApplyModifiedProperties();
+					pill.SetValue(prop.boolValue);
+				};
+				var boolRow = Row(label ?? prop.displayName, pill, indent);
+				boolRow.TrackPropertyValue(prop, sp => pill.SetValue(sp.boolValue));
+				return boolRow;
+			}
+
+			if (prop.propertyType == SerializedPropertyType.Enum) {
+				var dd = SperlichEditorWidgets.CreateEnumDropdown(prop);
+				return Row(label ?? prop.displayName, dd, indent);
 			}
 
 			if (prop.propertyType == SerializedPropertyType.Color) {

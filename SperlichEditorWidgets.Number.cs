@@ -14,7 +14,7 @@ namespace Sperlich.EditorKit {
 		/// <summary>Zahlenfeld mit kleinem Ziehgriff (6-Punkt-Icon) links: rechts/links ziehen ändert den Wert,
 		/// wie Unitys klassischer Label-Drag. Für Float- und Int-Properties. Das Eingabefeld selbst bleibt
 		/// normal tippbar.</summary>
-		public static VisualElement CreateDragNumberField(SerializedProperty prop, float sensitivity = 1f) {
+		public static VisualElement CreateDragNumberField(SerializedProperty prop, float sensitivity = 1f, float min = float.MinValue, float max = float.MaxValue) {
 			bool isInt = prop.propertyType == SerializedPropertyType.Integer;
 
 			var row = new VisualElement { style = { flexDirection = UnityEngine.UIElements.FlexDirection.Row, alignItems = Align.Center, flexGrow = 1 } };
@@ -25,12 +25,24 @@ namespace Sperlich.EditorKit {
 			if (isInt) {
 				var f = new IntegerField();
 				f.BindProperty(prop);
+				if (min > int.MinValue || max < int.MaxValue) {
+					f.RegisterValueChangedCallback(evt => {
+						int clamped = Mathf.Clamp(evt.newValue, (int)min, (int)max);
+						if (clamped != evt.newValue) f.value = clamped;
+					});
+				}
 				var dragger = new FieldMouseDragger<int>(f);
 				dragger.SetDragZone(grip);
 				input = f;
 			} else {
 				var f = new FloatField();
 				f.BindProperty(prop);
+				if (min > float.MinValue || max < float.MaxValue) {
+					f.RegisterValueChangedCallback(evt => {
+						float clamped = Mathf.Clamp(evt.newValue, min, max);
+						if (clamped != evt.newValue) f.value = clamped;
+					});
+				}
 				var dragger = new FieldMouseDragger<float>(f);
 				dragger.SetDragZone(grip);
 				input = f;
@@ -41,6 +53,99 @@ namespace Sperlich.EditorKit {
 
 			row.Add(grip);
 			row.Add(input);
+			return row;
+		}
+
+		/// <summary>Zahlenfeld mit Ziehgriff links und kleinen Rauf/Runter-Schritt-Pfeilen (▲/▼) rechts für 1-Klick-Inkrementierung.</summary>
+		public static VisualElement CreateSteppedNumberField(SerializedProperty prop, int step = 1, int min = int.MinValue, int max = int.MaxValue) {
+			var row = new VisualElement { style = { flexDirection = UnityEngine.UIElements.FlexDirection.Row, alignItems = Align.Center, flexGrow = 1 } };
+
+			VisualElement grip = MakeDragGrip();
+
+			var input = new IntegerField();
+			input.BindProperty(prop);
+			if (min > int.MinValue || max < int.MaxValue) {
+				input.RegisterValueChangedCallback(evt => {
+					int clamped = Mathf.Clamp(evt.newValue, min, max);
+					if (clamped != evt.newValue) input.value = clamped;
+				});
+			}
+			var dragger = new FieldMouseDragger<int>(input);
+			dragger.SetDragZone(grip);
+			input.style.flexGrow = 1;
+			input.style.marginLeft = 2;
+			input.style.marginRight = 2;
+			SperlichFieldColumn.HideInternalLabel(input);
+
+			var spinnerCol = new VisualElement {
+				style = {
+					width = 14,
+					height = 18,
+					flexDirection = UnityEngine.UIElements.FlexDirection.Column,
+					justifyContent = Justify.Center,
+					alignItems = Align.Center,
+					backgroundColor = SperlichEditorTheme.ButtonBg,
+					borderTopWidth = 1,
+					borderBottomWidth = 1,
+					borderLeftWidth = 1,
+					borderRightWidth = 1,
+					borderTopColor = SperlichEditorTheme.ButtonBorder,
+					borderBottomColor = SperlichEditorTheme.ButtonBorder,
+					borderLeftColor = SperlichEditorTheme.ButtonBorder,
+					borderRightColor = SperlichEditorTheme.ButtonBorder,
+					borderTopLeftRadius = 2,
+					borderTopRightRadius = 2,
+					borderBottomLeftRadius = 2,
+					borderBottomRightRadius = 2
+				}
+			};
+
+			var upBtn = new Label("▴") {
+				pickingMode = PickingMode.Position,
+				style = {
+					fontSize = 9,
+					unityTextAlign = TextAnchor.MiddleCenter,
+					color = SperlichEditorTheme.TextMuted,
+					height = 10,
+					width = 14,
+					paddingTop = 0,
+					paddingBottom = 0
+				}
+			};
+			SetHoverCursor(upBtn, MouseCursor.Link);
+			upBtn.RegisterCallback<MouseEnterEvent>(_ => upBtn.style.color = SperlichEditorTheme.TextPrimary);
+			upBtn.RegisterCallback<MouseLeaveEvent>(_ => upBtn.style.color = SperlichEditorTheme.TextMuted);
+			upBtn.RegisterCallback<ClickEvent>(_ => {
+				prop.intValue = Mathf.Clamp(prop.intValue + step, min, max);
+				prop.serializedObject.ApplyModifiedProperties();
+			});
+
+			var downBtn = new Label("▾") {
+				pickingMode = PickingMode.Position,
+				style = {
+					fontSize = 9,
+					unityTextAlign = TextAnchor.MiddleCenter,
+					color = SperlichEditorTheme.TextMuted,
+					height = 10,
+					width = 14,
+					paddingTop = 0,
+					paddingBottom = 0
+				}
+			};
+			SetHoverCursor(downBtn, MouseCursor.Link);
+			downBtn.RegisterCallback<MouseEnterEvent>(_ => downBtn.style.color = SperlichEditorTheme.TextPrimary);
+			downBtn.RegisterCallback<MouseLeaveEvent>(_ => downBtn.style.color = SperlichEditorTheme.TextMuted);
+			downBtn.RegisterCallback<ClickEvent>(_ => {
+				prop.intValue = Mathf.Clamp(prop.intValue - step, min, max);
+				prop.serializedObject.ApplyModifiedProperties();
+			});
+
+			spinnerCol.Add(upBtn);
+			spinnerCol.Add(downBtn);
+
+			row.Add(grip);
+			row.Add(input);
+			row.Add(spinnerCol);
 			return row;
 		}
 
@@ -81,11 +186,21 @@ namespace Sperlich.EditorKit {
 		/// <summary>True, wenn das Feld hinter <paramref name="prop"/> ein <see cref="RangeAttribute"/> trägt
 		/// (dann lieber Unitys Slider behalten statt es zum Drag-Zahlenfeld zu machen).</summary>
 		public static bool PropertyHasRange(SerializedProperty prop) {
+			return TryGetRange(prop, out _, out _);
+		}
+
+		/// <summary>Ermittelt min/max, falls das Feld hinter <paramref name="prop"/> ein <see cref="RangeAttribute"/> trägt.</summary>
+		public static bool TryGetRange(SerializedProperty prop, out float min, out float max) {
+			min = 0f; max = 1f;
 			if (prop?.serializedObject?.targetObject == null) return false;
 			Type t = prop.serializedObject.targetObject.GetType();
 			while (t != null && t != typeof(object)) {
 				FieldInfo fi = t.GetField(prop.name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
-				if (fi != null) return fi.GetCustomAttribute(typeof(RangeAttribute)) != null;
+				if (fi != null && fi.GetCustomAttribute(typeof(RangeAttribute)) is RangeAttribute range) {
+					min = range.min;
+					max = range.max;
+					return true;
+				}
 				t = t.BaseType;
 			}
 			return false;

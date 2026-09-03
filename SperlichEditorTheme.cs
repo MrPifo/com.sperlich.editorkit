@@ -22,9 +22,8 @@ namespace Sperlich.EditorKit {
 		public static readonly Color ButtonBg = new Color(0.22f, 0.23f, 0.27f);
 		public static readonly Color ButtonHoverBg = new Color(0.28f, 0.30f, 0.38f);
 		public static readonly Color ButtonBorder = new Color(0.35f, 0.38f, 0.45f, 0.3f);
-		public static readonly Color ButtonAccent = new Color(0.30f, 0.90f, 0.50f);
-
-		public static readonly Color ToggleOnBg = new Color(0.25f, 0.75f, 0.65f);
+		public static readonly Color ButtonAccent = new Color(96f / 255f, 165f / 255f, 250f / 255f);
+		public static readonly Color ToggleOnBg = new Color(59f / 255f, 130f / 255f, 246f / 255f);
 		public static readonly Color ToggleOffBg = new Color(0.25f, 0.25f, 0.30f);
 
 		public static readonly Color BadgeInfoBg = new Color(0.15f, 0.45f, 0.85f);
