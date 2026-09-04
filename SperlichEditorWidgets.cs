@@ -518,6 +518,310 @@ namespace Sperlich.EditorKit {
 			return field;
 		}
 
+		/// <summary>Flaches, mehrfach auswählbares Dropdown im Sperlich-Stil für Flags/Multi-Select (Checkbox-Häkchen pro Zeile, bleibt offen bis zum Klick außerhalb).</summary>
+		public static VisualElement BuildMultiSelectDropdown(
+			Func<int> getCount,
+			Func<int, string> getLabel,
+			Func<int, bool> isSelected,
+			Action<int> onToggle,
+			Func<string> getHeaderLabel,
+			Color? accent = null) {
+
+			Color accentColor = accent ?? SperlichEditorTheme.ButtonAccent;
+
+			var field = new VisualElement { pickingMode = PickingMode.Position };
+			field.style.flexDirection = UnityEngine.UIElements.FlexDirection.Row;
+			field.style.alignItems = Align.Center;
+			field.style.justifyContent = Justify.SpaceBetween;
+			field.style.backgroundColor = SperlichEditorTheme.BgDark;
+			field.style.paddingLeft = 6;
+			field.style.paddingRight = 6;
+			field.style.height = 20;
+			field.style.flexGrow = 1;
+			SetRadius(field, 3);
+			ApplyColorTransition(field, 100, "background-color");
+			SetHoverCursor(field, MouseCursor.Link);
+			field.RegisterCallback<MouseEnterEvent>(_ => field.style.backgroundColor = Color.Lerp(SperlichEditorTheme.BgDark, Color.white, 0.06f));
+			field.RegisterCallback<MouseLeaveEvent>(_ => field.style.backgroundColor = SperlichEditorTheme.BgDark);
+
+			var valueLabel = new Label {
+				pickingMode = PickingMode.Ignore,
+				style = {
+					fontSize = 11,
+					color = SperlichEditorTheme.TextPrimary,
+					flexGrow = 1,
+					flexShrink = 1,
+					whiteSpace = WhiteSpace.NoWrap,
+					overflow = Overflow.Hidden,
+					textOverflow = TextOverflow.Ellipsis,
+				}
+			};
+			var chevron = new Label("▾") { pickingMode = PickingMode.Ignore, style = { fontSize = 9, color = SperlichEditorTheme.TextMuted, marginLeft = 4, flexShrink = 0 } };
+			field.Add(valueLabel);
+			field.Add(chevron);
+
+			void RefreshHeader() {
+				valueLabel.text = getHeaderLabel != null ? getHeaderLabel() : "—";
+			}
+			RefreshHeader();
+
+			VisualElement openPopup = null;
+			VisualElement dismissTree = null;
+			EventCallback<PointerDownEvent> dismissHandler = null;
+			EventCallback<WheelEvent> wheelDismissHandler = null;
+			EditorApplication.CallbackFunction focusWatch = null;
+
+			void ClosePopup() {
+				openPopup?.RemoveFromHierarchy();
+				openPopup = null;
+				if (dismissTree != null) {
+					if (dismissHandler != null) dismissTree.UnregisterCallback(dismissHandler, TrickleDown.TrickleDown);
+					if (wheelDismissHandler != null) dismissTree.UnregisterCallback(wheelDismissHandler, TrickleDown.TrickleDown);
+				}
+				dismissTree = null;
+				dismissHandler = null;
+				wheelDismissHandler = null;
+				if (focusWatch != null) { EditorApplication.update -= focusWatch; focusWatch = null; }
+			}
+
+			void OpenPopup() {
+				if (openPopup != null) { ClosePopup(); return; }
+				VisualElement panelRoot = ResolveOverlayRoot(field);
+				if (panelRoot == null) return;
+
+				var popup = CreateBox(4, SperlichEditorTheme.BorderStrong);
+				popup.style.position = Position.Absolute;
+				popup.style.backgroundColor = SperlichEditorTheme.BgPanel;
+				popup.style.maxHeight = 320;
+				if (EditorStyles.label?.font != null) {
+					popup.style.unityFont = EditorStyles.label.font;
+				}
+
+				for (var p = field; p != null; p = p.hierarchy.parent) {
+					int count = p.styleSheets.count;
+					for (int s = 0; s < count; s++) {
+						var sheet = p.styleSheets[s];
+						if (!popup.styleSheets.Contains(sheet)) {
+							popup.styleSheets.Add(sheet);
+						}
+					}
+				}
+
+				var optionHost = new ScrollView(ScrollViewMode.Vertical);
+				popup.Add(optionHost);
+
+				int optionCount = getCount();
+				var checkLabels = new Label[optionCount];
+				var textLabels = new Label[optionCount];
+
+				for (int i = 0; i < optionCount; i++) {
+					int index = i;
+					bool active = isSelected(index);
+
+					var row = new VisualElement { pickingMode = PickingMode.Position };
+					row.style.flexDirection = UnityEngine.UIElements.FlexDirection.Row;
+					row.style.alignItems = Align.Center;
+					row.style.paddingLeft = 8;
+					row.style.paddingRight = 8;
+					row.style.paddingTop = 4;
+					row.style.paddingBottom = 4;
+					ApplyColorTransition(row, 80, "background-color");
+					SetHoverCursor(row, MouseCursor.Link);
+
+					var check = new Label(active ? "✓" : "") {
+						pickingMode = PickingMode.Ignore,
+						style = {
+							fontSize = 10,
+							color = accentColor,
+							width = 14,
+							flexShrink = 0,
+							unityFont = EditorStyles.label?.font
+						}
+					};
+					var label = new Label(getLabel(i)) {
+						pickingMode = PickingMode.Ignore,
+						style = {
+							fontSize = 11,
+							color = active ? SperlichEditorTheme.TextPrimary : SperlichEditorTheme.TextSecondary,
+							flexGrow = 1,
+							whiteSpace = WhiteSpace.NoWrap,
+							overflow = Overflow.Hidden,
+							textOverflow = TextOverflow.Ellipsis,
+							unityFont = EditorStyles.label?.font
+						}
+					};
+					row.Add(check);
+					row.Add(label);
+
+					checkLabels[i] = check;
+					textLabels[i] = label;
+
+					row.RegisterCallback<MouseEnterEvent>(_ => row.style.backgroundColor = new Color(1f, 1f, 1f, 0.06f));
+					row.RegisterCallback<MouseLeaveEvent>(_ => row.style.backgroundColor = Color.clear);
+					row.RegisterCallback<ClickEvent>(evt => {
+						evt.StopPropagation();
+						onToggle(index);
+						RefreshHeader();
+						for (int j = 0; j < optionCount; j++) {
+							bool isSel = isSelected(j);
+							checkLabels[j].text = isSel ? "✓" : "";
+							textLabels[j].style.color = isSel ? SperlichEditorTheme.TextPrimary : SperlichEditorTheme.TextSecondary;
+						}
+					});
+
+					optionHost.Add(row);
+				}
+
+				panelRoot.Add(popup);
+				popup.BringToFront();
+
+				const float margin = 4f;
+				Rect fieldBound = field.worldBound;
+				Vector2 topLeft = panelRoot.WorldToLocal(new Vector2(fieldBound.xMin, fieldBound.yMax));
+				Vector2 topRight = panelRoot.WorldToLocal(new Vector2(fieldBound.xMax, fieldBound.yMax));
+
+				float popupMinWidth = Mathf.Max(fieldBound.width, 140f);
+				popup.style.minWidth = popupMinWidth;
+
+				float panelWidth = panelRoot.contentRect.width;
+				float targetLeft = topLeft.x;
+				if (panelWidth > 0f && targetLeft + popupMinWidth > panelWidth - margin) {
+					targetLeft = Mathf.Max(margin, topRight.x - popupMinWidth);
+					if (targetLeft + popupMinWidth > panelWidth - margin) {
+						targetLeft = Mathf.Max(margin, panelWidth - popupMinWidth - margin);
+					}
+				}
+
+				popup.style.left = targetLeft;
+				popup.style.top = topLeft.y + 2;
+
+				popup.RegisterCallback<GeometryChangedEvent>(evt => {
+					if (openPopup != popup || panelRoot == null) return;
+					float pw = panelRoot.contentRect.width;
+					float ph = panelRoot.contentRect.height;
+					float w = evt.newRect.width > 0f ? evt.newRect.width : popupMinWidth;
+					float h = evt.newRect.height;
+					float l = targetLeft;
+					if (pw > 0f && l + w > pw - margin) l = Mathf.Max(margin, pw - w - margin);
+					popup.style.left = l;
+					if (ph > 0f && topLeft.y + 2 + h > ph - margin) {
+						Vector2 fieldTop = panelRoot.WorldToLocal(new Vector2(fieldBound.xMin, fieldBound.yMin));
+						popup.style.top = Mathf.Max(margin, fieldTop.y - h - 2);
+					}
+				});
+
+				openPopup = popup;
+				dismissTree = field.panel?.visualTree;
+				if (dismissTree != null) {
+					dismissHandler = evt => {
+						if (openPopup == null) return;
+						if (evt.target is VisualElement targetVe && (openPopup.Contains(targetVe) || openPopup == targetVe)) return;
+						ClosePopup();
+					};
+					wheelDismissHandler = _ => ClosePopup();
+					dismissTree.RegisterCallback(dismissHandler, TrickleDown.TrickleDown);
+					dismissTree.RegisterCallback(wheelDismissHandler, TrickleDown.TrickleDown);
+				}
+
+				var triggerWindow = EditorWindow.focusedWindow;
+				focusWatch = () => {
+					if (EditorWindow.focusedWindow != triggerWindow) ClosePopup();
+				};
+				EditorApplication.update += focusWatch;
+			}
+
+			field.RegisterCallback<ClickEvent>(_ => OpenPopup());
+			field.RegisterCallback<DetachFromPanelEvent>(_ => ClosePopup());
+
+			return field;
+		}
+
+		/// <summary>Flaches Flags-Dropdown im Sperlich-Stil für <c>[Flags]</c> Enums (Checkboxen, bleibt offen, unterstützt Nothing/Everything).</summary>
+		public static VisualElement CreateFlagsDropdown(SerializedProperty enumProp, Color? accent = null, Action<int> onChanged = null) {
+			string[] names = enumProp.enumNames ?? System.Array.Empty<string>();
+			string[] displayNames = enumProp.enumDisplayNames ?? names;
+
+			string FormatFlagsLabel(int mask) {
+				if (mask == 0) return "Nothing";
+				var active = new List<string>();
+				for (int i = 0; i < names.Length; i++) {
+					int bitMask = 1 << i;
+					if ((mask & bitMask) != 0) {
+						active.Add(i < displayNames.Length && !string.IsNullOrEmpty(displayNames[i]) ? displayNames[i] : ObjectNames.NicifyVariableName(names[i]));
+					}
+				}
+				if (active.Count == 0) return "Nothing";
+				if (active.Count == names.Length) return "Everything";
+				if (active.Count == 1) return active[0];
+				return string.Join(", ", active);
+			}
+
+			// Options: 0: Nothing, 1: Everything, 2..(names.Length + 1): Individual flags
+			int totalOptions = names.Length + 2;
+
+			int AllMask() {
+				int all = 0;
+				for (int i = 0; i < names.Length; i++) all |= (1 << i);
+				return all;
+			}
+
+			string GetOptionLabel(int index) {
+				if (index == 0) return "Nothing";
+				if (index == 1) return "Everything";
+				int flagIdx = index - 2;
+				if (flagIdx >= 0 && flagIdx < displayNames.Length && !string.IsNullOrEmpty(displayNames[flagIdx])) {
+					return displayNames[flagIdx];
+				}
+				if (flagIdx >= 0 && flagIdx < names.Length) {
+					return ObjectNames.NicifyVariableName(names[flagIdx]);
+				}
+				return "—";
+			}
+
+			bool IsOptionSelected(int index) {
+				int mask = enumProp.intValue;
+				if (index == 0) return mask == 0;
+				if (index == 1) return mask != 0 && (mask & AllMask()) == AllMask();
+				int bit = 1 << (index - 2);
+				return (mask & bit) != 0;
+			}
+
+			void ToggleOption(int index) {
+				int mask = enumProp.intValue;
+				if (index == 0) {
+					mask = 0;
+				} else if (index == 1) {
+					mask = AllMask();
+				} else {
+					int bit = 1 << (index - 2);
+					if ((mask & bit) != 0) {
+						mask &= ~bit;
+					} else {
+						mask |= bit;
+					}
+				}
+				enumProp.intValue = mask;
+				enumProp.serializedObject.ApplyModifiedProperties();
+				onChanged?.Invoke(mask);
+			}
+
+			var dd = BuildMultiSelectDropdown(
+				() => totalOptions,
+				GetOptionLabel,
+				IsOptionSelected,
+				ToggleOption,
+				() => FormatFlagsLabel(enumProp.intValue),
+				accent
+			);
+
+			dd.TrackPropertyValue(enumProp, _ => {
+				Label valLbl = dd.Q<Label>();
+				if (valLbl != null) valLbl.text = FormatFlagsLabel(enumProp.intValue);
+			});
+
+			return dd;
+		}
+
 		/// <summary>Flaches Enum-Dropdown im Sperlich-Stil — ersetzt Unitys native Enum-Popups.</summary>
 		public static VisualElement CreateEnumDropdown(SerializedProperty enumProp, Color? accent = null, Action<int> onChanged = null) {
 			string LabelFor(int index) {
