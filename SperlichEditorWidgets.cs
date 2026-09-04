@@ -515,7 +515,15 @@ namespace Sperlich.EditorKit {
 				EditorApplication.update += focusWatch;
 			}
 
-			field.RegisterCallback<ClickEvent>(_ => OpenPopup());
+			// PointerDown statt ClickEvent: die Klick-außerhalb-Erkennung (dismissHandler) läuft ebenfalls
+			// auf PointerDownEvent. Beide auf demselben Event-Typ zu halten vermeidet eine Race-Condition
+			// zwischen den beiden Events, die dazu führen konnte, dass ein zweiter Klick auf das Feld das
+			// bereits offene Popup nicht schloss, sondern ein zweites (neu animiertes) daneben öffnete.
+			field.RegisterCallback<PointerDownEvent>(evt => {
+				if (evt.button != 0) return;
+				evt.StopPropagation();
+				OpenPopup();
+			});
 			field.RegisterCallback<DetachFromPanelEvent>(_ => ClosePopup());
 
 			return field;
@@ -733,7 +741,12 @@ namespace Sperlich.EditorKit {
 				EditorApplication.update += focusWatch;
 			}
 
-			field.RegisterCallback<ClickEvent>(_ => OpenPopup());
+			// Siehe BuildDropdown: PointerDown statt ClickEvent, konsistent mit der Klick-außerhalb-Erkennung.
+			field.RegisterCallback<PointerDownEvent>(evt => {
+				if (evt.button != 0) return;
+				evt.StopPropagation();
+				OpenPopup();
+			});
 			field.RegisterCallback<DetachFromPanelEvent>(_ => ClosePopup());
 
 			return field;
