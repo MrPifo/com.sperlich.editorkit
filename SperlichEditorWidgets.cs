@@ -342,6 +342,11 @@ namespace Sperlich.EditorKit {
 			// (a click into the Scene / Game / Hierarchy / Project view etc.). The in-panel PointerDown
 			// handler above only sees clicks inside the same inspector.
 			EditorApplication.CallbackFunction focusWatch = null;
+			// dismissHandler (trickle-down, root) fires before field's eigener PointerDown-Handler (target-phase)
+			// bei EIN und demselben Klick auf das Feld. Schließt dismissHandler dabei das Popup, muss field's
+			// Handler direkt danach das sofortige Wiederöffnen im selben Klick unterdrücken - sonst schließt es
+			// nie sichtbar (zu/auf im selben Frame).
+			bool suppressReopen = false;
 
 			void ClosePopup() {
 				openPopup?.RemoveFromHierarchy();
@@ -357,7 +362,7 @@ namespace Sperlich.EditorKit {
 			}
 
 			void OpenPopup() {
-				if (openPopup != null) { ClosePopup(); return; }
+				if (openPopup != null) return;
 				VisualElement panelRoot = ResolveOverlayRoot(field);
 				if (panelRoot == null) return;
 
@@ -498,9 +503,10 @@ namespace Sperlich.EditorKit {
 					dismissHandler = evt => {
 						if (openPopup == null) return;
 						var t = evt.target as VisualElement;
-						if (t != null && (t == field || field.Contains(t))) return;
 						if (t != null && (t == openPopup || openPopup.Contains(t))) return;
+						bool clickedField = t != null && (t == field || field.Contains(t));
 						ClosePopup();
+						if (clickedField) suppressReopen = true;
 					};
 					wheelDismissHandler = _ => ClosePopup();
 					dismissTree.RegisterCallback(dismissHandler, TrickleDown.TrickleDown);
@@ -515,13 +521,13 @@ namespace Sperlich.EditorKit {
 				EditorApplication.update += focusWatch;
 			}
 
-			// PointerDown statt ClickEvent: die Klick-außerhalb-Erkennung (dismissHandler) läuft ebenfalls
-			// auf PointerDownEvent. Beide auf demselben Event-Typ zu halten vermeidet eine Race-Condition
-			// zwischen den beiden Events, die dazu führen konnte, dass ein zweiter Klick auf das Feld das
-			// bereits offene Popup nicht schloss, sondern ein zweites (neu animiertes) daneben öffnete.
+			// Öffnet nur wenn geschlossen - das Schließen (auch bei erneutem Klick auf field selbst) übernimmt
+			// ausschließlich dismissHandler oben, der pro Klick garantiert vor diesem Handler feuert
+			// (trickle-down vom Root vs. target-phase hier). suppressReopen verhindert, dass ein Klick, der
+			// gerade erst geschlossen hat, im selben Frame sofort wieder öffnet.
 			field.RegisterCallback<PointerDownEvent>(evt => {
 				if (evt.button != 0) return;
-				evt.StopPropagation();
+				if (suppressReopen) { suppressReopen = false; return; }
 				OpenPopup();
 			});
 			field.RegisterCallback<DetachFromPanelEvent>(_ => ClosePopup());
@@ -581,6 +587,10 @@ namespace Sperlich.EditorKit {
 			EventCallback<PointerDownEvent> dismissHandler = null;
 			EventCallback<WheelEvent> wheelDismissHandler = null;
 			EditorApplication.CallbackFunction focusWatch = null;
+			// Siehe BuildDropdown: dismissHandler feuert pro Klick garantiert vor field's eigenem Handler und
+			// schließt dabei auch bei erneutem Klick auf field selbst. suppressReopen verhindert, dass field's
+			// Handler das Popup im selben Klick sofort wieder öffnet.
+			bool suppressReopen = false;
 
 			void ClosePopup() {
 				openPopup?.RemoveFromHierarchy();
@@ -596,7 +606,7 @@ namespace Sperlich.EditorKit {
 			}
 
 			void OpenPopup() {
-				if (openPopup != null) { ClosePopup(); return; }
+				if (openPopup != null) return;
 				VisualElement panelRoot = ResolveOverlayRoot(field);
 				if (panelRoot == null) return;
 
@@ -727,7 +737,9 @@ namespace Sperlich.EditorKit {
 					dismissHandler = evt => {
 						if (openPopup == null) return;
 						if (evt.target is VisualElement targetVe && (openPopup.Contains(targetVe) || openPopup == targetVe)) return;
+						bool clickedField = evt.target is VisualElement fieldVe && (fieldVe == field || field.Contains(fieldVe));
 						ClosePopup();
+						if (clickedField) suppressReopen = true;
 					};
 					wheelDismissHandler = _ => ClosePopup();
 					dismissTree.RegisterCallback(dismissHandler, TrickleDown.TrickleDown);
@@ -741,10 +753,10 @@ namespace Sperlich.EditorKit {
 				EditorApplication.update += focusWatch;
 			}
 
-			// Siehe BuildDropdown: PointerDown statt ClickEvent, konsistent mit der Klick-außerhalb-Erkennung.
+			// Öffnet nur wenn geschlossen - schließen (auch bei erneutem Klick auf field) übernimmt dismissHandler.
 			field.RegisterCallback<PointerDownEvent>(evt => {
 				if (evt.button != 0) return;
-				evt.StopPropagation();
+				if (suppressReopen) { suppressReopen = false; return; }
 				OpenPopup();
 			});
 			field.RegisterCallback<DetachFromPanelEvent>(_ => ClosePopup());
