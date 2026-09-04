@@ -508,7 +508,12 @@ namespace Sperlich.EditorKit {
 						ClosePopup();
 						if (clickedField) suppressReopen = true;
 					};
-					wheelDismissHandler = _ => ClosePopup();
+					wheelDismissHandler = evt => {
+						if (openPopup == null) return;
+						var t = evt.target as VisualElement;
+						if (t != null && (t == openPopup || openPopup.Contains(t))) return;
+						ClosePopup();
+					};
 					dismissTree.RegisterCallback(dismissHandler, TrickleDown.TrickleDown);
 					dismissTree.RegisterCallback(wheelDismissHandler, TrickleDown.TrickleDown);
 				}
@@ -741,7 +746,11 @@ namespace Sperlich.EditorKit {
 						ClosePopup();
 						if (clickedField) suppressReopen = true;
 					};
-					wheelDismissHandler = _ => ClosePopup();
+					wheelDismissHandler = evt => {
+						if (openPopup == null) return;
+						if (evt.target is VisualElement targetVe && (openPopup.Contains(targetVe) || openPopup == targetVe)) return;
+						ClosePopup();
+					};
 					dismissTree.RegisterCallback(dismissHandler, TrickleDown.TrickleDown);
 					dismissTree.RegisterCallback(wheelDismissHandler, TrickleDown.TrickleDown);
 				}
