@@ -71,11 +71,14 @@ namespace Sperlich.EditorKit {
 			SetRadius(btn, 3);
 			SetHoverCursor(btn, MouseCursor.Link);
 
-			btn.RegisterCallback<MouseOverEvent>(_ => {
+			// MouseEnterEvent/MouseLeaveEvent fire only at the element boundary — not when moving
+			// between parent and child (MouseOverEvent/MouseOutEvent would re-fire for every child
+			// transition, causing rapid hover-state flicker and a cascade of 100ms transitions).
+			btn.RegisterCallback<MouseEnterEvent>(_ => {
 				btn.style.backgroundColor = SperlichEditorTheme.ButtonHoverBg;
 				if (isAccent) SetBorderColor(btn, SperlichEditorTheme.ButtonAccent);
 			});
-			btn.RegisterCallback<MouseOutEvent>(_ => {
+			btn.RegisterCallback<MouseLeaveEvent>(_ => {
 				btn.style.backgroundColor = SperlichEditorTheme.ButtonBg;
 				SetBorderColor(btn, SperlichEditorTheme.ButtonBorder);
 			});

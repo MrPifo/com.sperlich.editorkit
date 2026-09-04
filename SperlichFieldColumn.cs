@@ -173,16 +173,22 @@ namespace Sperlich.EditorKit {
 		public static VisualElement Raw(SerializedProperty prop, string label = null) {
 			if (prop == null) return new VisualElement();
 			var pf = label == null ? new PropertyField(prop) : new PropertyField(prop, label);
-			pf.RegisterCallback<GeometryChangedEvent>(_ => DeAlign(pf));
+			EventCallback<GeometryChangedEvent> cb = null;
+			cb = _ => {
+				DeAlign(pf);
+				pf.UnregisterCallback(cb);
+			};
+			pf.RegisterCallback(cb);
 			return pf;
 		}
 
 		private float ColumnWidth(int indent) => Mathf.Max(0f, LabelWidth - indent * IndentStep);
 
 		/// <summary>Bringt das interne Feld-Label (nur das äußerste — innere X/Y/Z-Labels bleiben unangetastet)
-		/// auf die Spaltenbreite und in den Sperlich-Stil, und hebt Unitys Auto-Ausrichtung auf. Läuft bei jedem
-		/// Geometry-Pass erneut, da PropertyField seine Kinder verzögert (und je nach Typ nachträglich) erzeugt.</summary>
+		/// auf die Spaltenbreite und in den Sperlich-Stil, und hebt Unitys Auto-Ausrichtung auf. Der Callback
+		/// wird nach dem ersten erfolgreichen Durchlauf abgemeldet, um unendliche Layout-Kaskaden zu vermeiden.</summary>
 		public static void ApplyColumnLabel(VisualElement field, float width, float marginLeft) {
+			EventCallback<GeometryChangedEvent> geoCallback = null;
 			void Apply() {
 				Label l = field.Q<Label>(className: "unity-base-field__label");
 				if (l != null) {
@@ -199,16 +205,23 @@ namespace Sperlich.EditorKit {
 					l.style.overflow = Overflow.Hidden;
 					l.style.textOverflow = TextOverflow.Ellipsis;
 					l.style.whiteSpace = WhiteSpace.NoWrap;
+					if (geoCallback != null) {
+						field.UnregisterCallback(geoCallback);
+						geoCallback = null;
+					}
 				}
 				DeAlign(field);
 			}
-			field.RegisterCallback<GeometryChangedEvent>(_ => Apply());
+			geoCallback = _ => Apply();
+			field.RegisterCallback(geoCallback);
 			field.schedule.Execute(Apply);
 		}
 
 		/// <summary>Blendet das interne Feld-Label komplett aus und hebt die Auto-Ausrichtung auf — für
-		/// kompakte Cluster-Felder (Margins-/Spacing-Reihe), die ihre Beschriftung von außen bekommen.</summary>
+		/// kompakte Cluster-Felder (Margins-/Spacing-Reihe), die ihre Beschriftung von außen bekommen.
+		/// Der Callback wird nach dem ersten erfolgreichen Durchlauf abgemeldet.</summary>
 		public static void HideInternalLabel(VisualElement field) {
+			EventCallback<GeometryChangedEvent> geoCallback = null;
 			void Apply() {
 				Label l = field.Q<Label>(className: "unity-base-field__label");
 				if (l != null) {
@@ -216,10 +229,15 @@ namespace Sperlich.EditorKit {
 					l.style.width = 0;
 					l.style.minWidth = 0;
 					l.style.marginRight = 0;
+					if (geoCallback != null) {
+						field.UnregisterCallback(geoCallback);
+						geoCallback = null;
+					}
 				}
 				DeAlign(field);
 			}
-			field.RegisterCallback<GeometryChangedEvent>(_ => Apply());
+			geoCallback = _ => Apply();
+			field.RegisterCallback(geoCallback);
 			field.schedule.Execute(Apply);
 		}
 
