@@ -82,6 +82,29 @@ namespace Sperlich.EditorKit {
 				btn.style.backgroundColor = SperlichEditorTheme.ButtonBg;
 				SetBorderColor(btn, SperlichEditorTheme.ButtonBorder);
 			});
+			ApplyHoverJuice(btn, "background-color", "border-color");
+		}
+
+		/// <summary>Subtle hover-lift + click-press feedback: a light scale-up while the pointer is over the
+		/// element, a quick scale-down while it's pressed. Purely a transform effect -- never touches
+		/// background/border colors itself, so it composes safely on top of a button's own selected/hover color
+		/// logic (<see cref="ApplyNeonButtonStyle"/>, <c>CreateFlagButtons</c>, an align-button bar, ...).
+		/// <paramref name="alsoTransition"/> lets a caller fold its own color properties into the same single
+		/// transition list (UI Toolkit replaces the whole list on every assignment, so they can't be set separately).</summary>
+		public static void ApplyHoverJuice(VisualElement el, params string[] alsoTransition) {
+			var props = new List<StylePropertyName> { new StylePropertyName("scale") };
+			if (alsoTransition != null) foreach (string p in alsoTransition) props.Add(new StylePropertyName(p));
+			el.style.transitionProperty = props;
+			el.style.transitionDuration = new List<TimeValue> { new TimeValue(110, TimeUnit.Millisecond) };
+			el.style.transitionTimingFunction = new List<EasingFunction> { new EasingFunction(EasingMode.EaseOutSine) };
+			el.style.scale = new StyleScale(new Scale(Vector3.one));
+
+			bool hovering = false, pressed = false;
+			void Apply() => el.style.scale = new StyleScale(new Scale(Vector3.one * (pressed ? 0.94f : hovering ? 1.03f : 1f)));
+			el.RegisterCallback<MouseEnterEvent>(_ => { hovering = true; Apply(); });
+			el.RegisterCallback<MouseLeaveEvent>(_ => { hovering = false; pressed = false; Apply(); });
+			el.RegisterCallback<MouseDownEvent>(_ => { pressed = true; Apply(); });
+			el.RegisterCallback<MouseUpEvent>(_ => { pressed = false; Apply(); });
 		}
 
 		public static Button MakeButton(string text, int width, Action onClick, bool isAccent = false) {
@@ -89,6 +112,36 @@ namespace Sperlich.EditorKit {
 			if (width > 0) btn.style.width = width;
 			btn.style.height = 20;
 			ApplyNeonButtonStyle(btn, isAccent);
+			return btn;
+		}
+
+		/// <summary>Small round "×" icon button for removing a list entry -- meant to sit as an absolute-positioned
+		/// corner overlay on a card (see <c>GlyphActionRegistryEditor</c>'s Action/Device cards) instead of inline
+		/// next to a field, which crowds the field and looks tacked-on. Neutral until hovered, then reddens.</summary>
+		public static VisualElement CreateRemoveButton(Action onClick, int size = 18) {
+			var btn = new VisualElement { pickingMode = PickingMode.Position, style = {
+				width = size, height = size, flexShrink = 0, alignItems = Align.Center, justifyContent = Justify.Center,
+				backgroundColor = SperlichEditorTheme.BgDark,
+			} };
+			SetRadius(btn, size / 2f);
+			SetHoverCursor(btn, MouseCursor.Link);
+			ApplyHoverJuice(btn, "background-color");
+
+			var glyph = new Label("×") { pickingMode = PickingMode.Ignore, style = {
+				fontSize = size >= 18 ? 13 : 11, color = SperlichEditorTheme.TextMuted, unityFontStyleAndWeight = FontStyle.Bold,
+			} };
+			btn.Add(glyph);
+
+			Color danger = SperlichEditorTheme.BadgeDangerBg;
+			btn.RegisterCallback<MouseEnterEvent>(_ => {
+				btn.style.backgroundColor = new Color(danger.r, danger.g, danger.b, 0.25f);
+				glyph.style.color = danger;
+			});
+			btn.RegisterCallback<MouseLeaveEvent>(_ => {
+				btn.style.backgroundColor = SperlichEditorTheme.BgDark;
+				glyph.style.color = SperlichEditorTheme.TextMuted;
+			});
+			btn.RegisterCallback<ClickEvent>(evt => { evt.StopPropagation(); onClick(); });
 			return btn;
 		}
 
@@ -104,6 +157,50 @@ namespace Sperlich.EditorKit {
 			badge.style.paddingRight = 6;
 			SetRadius(badge, 3);
 			return badge;
+		}
+
+		/// <summary>Schweregrad für <see cref="CreateMessageBox"/> — bestimmt Farbe und Symbol.</summary>
+		public enum MessageKind { Info, Warning, Error }
+
+		/// <summary>Farbige Hinweis-/Warn-/Fehlerbox im Sperlich-Stil (Pendant zu Unitys <c>HelpBox</c>), z.B.
+		/// um eine Projekt-Konfigurationsverletzung direkt im Inspector sichtbar zu machen. Text bricht
+		/// automatisch um; die Box wächst mit dem Inhalt.</summary>
+		public static VisualElement CreateMessageBox(string message, MessageKind kind = MessageKind.Info) {
+			(Color bg, Color border, string icon) = kind switch {
+				MessageKind.Warning => (new Color(SperlichEditorTheme.BadgeWarnBg.r, SperlichEditorTheme.BadgeWarnBg.g, SperlichEditorTheme.BadgeWarnBg.b, 0.18f), SperlichEditorTheme.BadgeWarnBg, "⚠"),
+				MessageKind.Error => (new Color(SperlichEditorTheme.BadgeDangerBg.r, SperlichEditorTheme.BadgeDangerBg.g, SperlichEditorTheme.BadgeDangerBg.b, 0.18f), SperlichEditorTheme.BadgeDangerBg, "✕"),
+				_ => (SperlichEditorTheme.BgPanel, SperlichEditorTheme.BorderStrong, "ℹ"),
+			};
+
+			var box = CreateBox(4, border);
+			box.style.backgroundColor = bg;
+			box.style.flexDirection = UnityEngine.UIElements.FlexDirection.Row;
+			box.style.alignItems = Align.FlexStart;
+			box.style.paddingLeft = 8;
+			box.style.paddingRight = 8;
+			box.style.paddingTop = 6;
+			box.style.paddingBottom = 6;
+			box.style.marginBottom = 4;
+
+			box.Add(new Label(icon) { style = { color = border, fontSize = 12, marginRight = 6, flexShrink = 0, unityFontStyleAndWeight = FontStyle.Bold } });
+			box.Add(new Label(message) {
+				style = {
+					whiteSpace = UnityEngine.UIElements.WhiteSpace.Normal, flexGrow = 1, flexShrink = 1,
+					fontSize = 11, color = SperlichEditorTheme.TextPrimary,
+				}
+			});
+			return box;
+		}
+
+		/// <summary>Kleines "ⓘ"-Symbol, das nur einen Hover-Tooltip trägt — für ausführlichere Erklärtexte, die
+		/// nicht dauerhaft Platz im Inspector beanspruchen sollen (Sperlich-Editor-Konvention: erklärende
+		/// Absätze wandern in den Tooltip statt als grauer Fließtext stehen zu bleiben).</summary>
+		public static VisualElement CreateInfoIcon(string tooltip) {
+			return new Label("ⓘ") {
+				tooltip = tooltip,
+				pickingMode = PickingMode.Position,
+				style = { color = SperlichEditorTheme.TextMuted, fontSize = 11, marginLeft = 6, flexShrink = 0 }
+			};
 		}
 
 		/// <summary>Kollabierbare Sektion mit handgezeichnetem ▼/▶-Pfeil statt nativem Foldout (Sperlich-Editor-Konvention, siehe AnimSequencerEditor).</summary>
@@ -978,6 +1075,17 @@ namespace Sperlich.EditorKit {
 				SetRadius(b, 3);
 				SetHoverCursor(b, MouseCursor.Link);
 				b.Add(new Label(captions[i]) { pickingMode = PickingMode.Ignore, style = { fontSize = 10, unityFontStyleAndWeight = FontStyle.Bold } });
+
+				// Hover tint independent of Refresh()'s selected-state colors -- lightens the off state a touch,
+				// intensifies the on (accent) state a touch, either way reverting to Refresh()'s own colors on leave.
+				b.RegisterCallback<MouseEnterEvent>(_ => {
+					bool on = (flagsProp.intValue & (1 << bit)) != 0;
+					b.style.backgroundColor = on
+						? new Color(accentColor.r, accentColor.g, accentColor.b, 0.26f)
+						: Color.Lerp(SperlichEditorTheme.ButtonBg, Color.white, 0.07f);
+				});
+				b.RegisterCallback<MouseLeaveEvent>(_ => Refresh());
+				ApplyHoverJuice(b, "background-color", "border-color");
 
 				b.RegisterCallback<ClickEvent>(_ => {
 					int mask = flagsProp.intValue;
