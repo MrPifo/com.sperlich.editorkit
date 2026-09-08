@@ -1,12 +1,8 @@
 {
-    "name": "Sperlich.EditorKit",
-    "rootNamespace": "",
-    "references": [
-        "Sperlich.EditorKit.Attributes"
-    ],
-    "includePlatforms": [
-        "Editor"
-    ],
+    "name": "Sperlich.EditorKit.Attributes",
+    "rootNamespace": "Sperlich.EditorKit",
+    "references": [],
+    "includePlatforms": [],
     "excludePlatforms": [],
     "allowUnsafeCode": false,
     "overrideReferences": false,

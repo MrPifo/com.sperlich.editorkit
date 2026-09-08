@@ -1,0 +1,116 @@
+/*
+ * Sperlich auto-inspector theme. Scoped under .sperlich-inspector so it never leaks into other
+ * inspectors. Colours mirror SperlichEditorTheme.cs (USS cannot read C# constants).
+ */
+
+.sperlich-inspector {
+    --sperlich-bg-dark: rgb(31, 33, 41);
+    --sperlich-bg-step: rgb(43, 46, 56);
+    --sperlich-bg-panel: rgb(50, 51, 57);
+    --sperlich-border: rgba(255, 255, 255, 0.10);
+    --sperlich-border-strong: rgba(255, 255, 255, 0.16);
+    --sperlich-text: rgb(226, 226, 226);
+    --sperlich-text-secondary: rgb(199, 199, 199);
+    --sperlich-text-muted: rgb(140, 140, 140);
+    --sperlich-accent: rgb(96, 165, 250);
+    color: var(--sperlich-text);
+}
+
+.sperlich-inspector Label {
+    color: var(--sperlich-text);
+}
+
+.sperlich-inspector .unity-base-field__label,
+.sperlich-inspector .unity-property-field__label,
+.sperlich-inspector .unity-foldout__text {
+    color: var(--sperlich-text-secondary);
+    -unity-font-style: normal;
+}
+
+.sperlich-inspector .unity-foldout__text {
+    -unity-font-style: bold;
+}
+
+/* ---- input surfaces -------------------------------------------------------- */
+
+.sperlich-inspector #unity-text-input,
+.sperlich-inspector .unity-base-text-field__input,
+.sperlich-inspector .unity-integer-field__input,
+.sperlich-inspector .unity-float-field__input,
+.sperlich-inspector .unity-double-field__input,
+.sperlich-inspector .unity-long-field__input,
+.sperlich-inspector .unity-text-field__input,
+.sperlich-inspector .unity-object-field__input,
+.sperlich-inspector .unity-enum-field__input,
+.sperlich-inspector .unity-popup-field__input,
+.sperlich-inspector .unity-layer-mask-field__input,
+.sperlich-inspector .unity-tag-field__input {
+    background-color: var(--sperlich-bg-dark);
+    border-color: var(--sperlich-border);
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: 3px;
+    color: var(--sperlich-text);
+}
+
+.sperlich-inspector .unity-composite-field__field #unity-text-input {
+    background-color: var(--sperlich-bg-dark);
+}
+
+.sperlich-inspector .unity-base-field__input:focus,
+.sperlich-inspector #unity-text-input:focus {
+    border-color: var(--sperlich-accent);
+}
+
+/* ---- foldouts (nested structs, collections, responsive Vector4, …) ------- */
+
+.sperlich-inspector .unity-foldout__toggle > .unity-toggle__input {
+    background-color: transparent;
+}
+
+/* The expand arrow otherwise sits flush against the panel edge (root has a negative
+   left margin so the header strips can bleed full-width) — nudge every foldout in. */
+.sperlich-inspector .unity-foldout__toggle {
+    margin-left: 7px;
+}
+
+.sperlich-inspector .unity-foldout__toggle > .unity-toggle__input > .unity-toggle__checkmark {
+    margin-left: 2px;
+}
+
+/* ---- collections -------------------------------------------------------- */
+
+.sperlich-inspector .unity-list-view,
+.sperlich-inspector .unity-list-view__empty-label {
+    background-color: var(--sperlich-bg-step);
+}
+
+.sperlich-inspector .unity-list-view {
+    border-width: 1px;
+    border-color: var(--sperlich-border);
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: 3px;
+}
+
+.sperlich-inspector .unity-list-view__header,
+.sperlich-inspector .unity-list-view__footer {
+    background-color: var(--sperlich-bg-step);
+}
+
+.sperlich-inspector .unity-collection-view__item--selected {
+    background-color: rgba(96, 165, 250, 0.15);
+}
+
+/* ---- misc ------------------------------------------------------------- */
+
+.sperlich-inspector .unity-help-box {
+    background-color: var(--sperlich-bg-panel);
+    border-color: var(--sperlich-border);
+    border-top-left-radius: 3px;
+    border-top-right-radius: 3px;
+    border-bottom-left-radius: 3px;
+    border-bottom-right-radius: 3px;
+}

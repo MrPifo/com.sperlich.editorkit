@@ -387,8 +387,10 @@ namespace Sperlich.EditorKit {
 		/// <param name="getLabel">Anzeigetext für Option <c>index</c>.</param>
 		/// <param name="getSelected">Index der aktuell gewählten Option (-1 = keine).</param>
 		/// <param name="onSelect">Wird mit dem geklickten Index aufgerufen; muss den Wert selbst persistieren.</param>
+		/// <param name="getBadge">Optional: kleines abgerundetes Zahl-/Wert-Kästchen am rechten Zeilenrand
+		/// (z.B. der Enum-Konstantenwert). Leerer/<c>null</c>-Rückgabewert = kein Kästchen für diese Zeile.</param>
 		public static VisualElement BuildDropdown(System.Func<int> getCount, System.Func<int, string> getLabel,
-			System.Func<int> getSelected, System.Action<int> onSelect, Color? accent = null) {
+			System.Func<int> getSelected, System.Action<int> onSelect, Color? accent = null, System.Func<int, string> getBadge = null) {
 			Color accentColor = accent ?? SperlichEditorTheme.ButtonAccent;
 
 			var field = new VisualElement { pickingMode = PickingMode.Position };
@@ -525,6 +527,10 @@ namespace Sperlich.EditorKit {
 					};
 					row.Add(check);
 					row.Add(label);
+					if (getBadge != null) {
+						string badgeText = getBadge(index);
+						if (!string.IsNullOrEmpty(badgeText)) row.Add(MakeIndexBadge(badgeText, selected));
+					}
 
 					row.RegisterCallback<MouseEnterEvent>(_ => row.style.backgroundColor = new Color(1f, 1f, 1f, 0.06f));
 					row.RegisterCallback<MouseLeaveEvent>(_ => row.style.backgroundColor = Color.clear);
@@ -644,7 +650,8 @@ namespace Sperlich.EditorKit {
 			Func<int, bool> isSelected,
 			Action<int> onToggle,
 			Func<string> getHeaderLabel,
-			Color? accent = null) {
+			Color? accent = null,
+			Func<int, string> getBadge = null) {
 
 			Color accentColor = accent ?? SperlichEditorTheme.ButtonAccent;
 
@@ -736,6 +743,7 @@ namespace Sperlich.EditorKit {
 				int optionCount = getCount();
 				var checkLabels = new Label[optionCount];
 				var textLabels = new Label[optionCount];
+				var badgeLabels = new Label[optionCount];
 
 				for (int i = 0; i < optionCount; i++) {
 					int index = i;
@@ -775,6 +783,14 @@ namespace Sperlich.EditorKit {
 					};
 					row.Add(check);
 					row.Add(label);
+					if (getBadge != null) {
+						string badgeText = getBadge(index);
+						if (!string.IsNullOrEmpty(badgeText)) {
+							Label badge = MakeIndexBadge(badgeText, active);
+							badgeLabels[i] = badge;
+							row.Add(badge);
+						}
+					}
 
 					checkLabels[i] = check;
 					textLabels[i] = label;
@@ -789,6 +805,7 @@ namespace Sperlich.EditorKit {
 							bool isSel = isSelected(j);
 							checkLabels[j].text = isSel ? "✓" : "";
 							textLabels[j].style.color = isSel ? SperlichEditorTheme.TextPrimary : SperlichEditorTheme.TextSecondary;
+							if (badgeLabels[j] != null) StyleIndexBadge(badgeLabels[j], isSel);
 						}
 					});
 
@@ -945,7 +962,8 @@ namespace Sperlich.EditorKit {
 				IsOptionSelected,
 				ToggleOption,
 				() => FormatFlagsLabel(enumProp.intValue),
-				accent
+				accent,
+				index => index < 2 ? null : (1 << (index - 2)).ToString()   // bit value badge (Nothing/Everything: none)
 			);
 
 			dd.TrackPropertyValue(enumProp, _ => {
@@ -957,7 +975,9 @@ namespace Sperlich.EditorKit {
 		}
 
 		/// <summary>Flaches Enum-Dropdown im Sperlich-Stil — ersetzt Unitys native Enum-Popups.</summary>
-		public static VisualElement CreateEnumDropdown(SerializedProperty enumProp, Color? accent = null, Action<int> onChanged = null) {
+		/// <param name="enumType">Optional: der echte Enum-Typ. Ist er gesetzt, bekommt jede Zeile ein
+		/// abgerundetes Kästchen mit dem dahinterliegenden Konstantenwert (z.B. <c>Priority.High = 10</c>).</param>
+		public static VisualElement CreateEnumDropdown(SerializedProperty enumProp, Color? accent = null, Action<int> onChanged = null, Type enumType = null) {
 			string LabelFor(int index) {
 				var display = enumProp.enumDisplayNames;
 				if (display != null && index >= 0 && index < display.Length && string.IsNullOrEmpty(display[index]) == false) return display[index];
@@ -965,6 +985,18 @@ namespace Sperlich.EditorKit {
 				if (raw != null && index >= 0 && index < raw.Length) return ObjectNames.NicifyVariableName(raw[index]);
 				return "—";
 			}
+
+			Dictionary<string, long> valueByName = null;
+			if (enumType != null && enumType.IsEnum) {
+				valueByName = new Dictionary<string, long>();
+				foreach (string n in Enum.GetNames(enumType)) valueByName[n] = Convert.ToInt64(Enum.Parse(enumType, n));
+			}
+			string BadgeFor(int index) {
+				string[] raw = enumProp.enumNames;
+				if (valueByName == null || raw == null || index < 0 || index >= raw.Length) return null;
+				return valueByName.TryGetValue(raw[index], out long v) ? v.ToString() : null;
+			}
+
 			var dd = BuildDropdown(
 				() => enumProp.enumNames?.Length ?? 0,
 				LabelFor,
@@ -975,7 +1007,8 @@ namespace Sperlich.EditorKit {
 					enumProp.serializedObject.ApplyModifiedProperties();
 					onChanged?.Invoke(i);
 				},
-				accent);
+				accent,
+				valueByName != null ? (Func<int, string>)BadgeFor : null);
 			dd.TrackPropertyValue(enumProp, _ => {
 				Label valLbl = dd.Q<Label>();
 				if (valLbl != null) valLbl.text = LabelFor(enumProp.enumValueIndex);
@@ -1178,6 +1211,39 @@ namespace Sperlich.EditorKit {
 				contentRoot = p;
 			}
 			return contentRoot;
+		}
+
+		/// <summary>Kleines abgerundetes Wert-Kästchen (z.B. Enum-Konstantenwert, Layer-Index) für den rechten
+		/// Rand einer Dropdown-Zeile. <paramref name="selected"/> färbt es im Akzent-Ton statt neutral-grau.</summary>
+		public static Label MakeIndexBadge(string text, bool selected) {
+			var badge = new Label(text) {
+				pickingMode = PickingMode.Ignore,
+				style = {
+					fontSize = 10, flexShrink = 0, marginLeft = 6,
+					// Uniform box for up to two digits (0..99); longer numbers grow past this.
+					minWidth = 22,
+					paddingLeft = 5, paddingRight = 5, paddingTop = 1, paddingBottom = 1,
+					unityTextAlign = TextAnchor.MiddleCenter,
+					borderTopWidth = 1, borderBottomWidth = 1, borderLeftWidth = 1, borderRightWidth = 1,
+					unityFont = EditorStyles.label?.font,
+				}
+			};
+			SetRadius(badge, 5);
+			StyleIndexBadge(badge, selected);
+			return badge;
+		}
+
+		private static void StyleIndexBadge(Label badge, bool selected) {
+			Color accent = SperlichEditorTheme.ButtonAccent;
+			if (selected) {
+				badge.style.backgroundColor = new Color(accent.r, accent.g, accent.b, 0.16f);
+				SetBorderColor(badge, new Color(accent.r, accent.g, accent.b, 0.35f));
+				badge.style.color = new Color(0.74f, 0.84f, 0.97f);
+			} else {
+				badge.style.backgroundColor = new Color(1f, 1f, 1f, 0.06f);
+				SetBorderColor(badge, new Color(1f, 1f, 1f, 0.13f));
+				badge.style.color = SperlichEditorTheme.TextMuted;
+			}
 		}
 
 		public static void SetRadius(VisualElement element, float radius) {

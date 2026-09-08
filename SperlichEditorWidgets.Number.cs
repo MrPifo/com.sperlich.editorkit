@@ -17,6 +17,14 @@ namespace Sperlich.EditorKit {
 		public static VisualElement CreateDragNumberField(SerializedProperty prop, float sensitivity = 1f, float min = float.MinValue, float max = float.MaxValue) {
 			bool isInt = prop.propertyType == SerializedPropertyType.Integer;
 
+			// No explicit bounds from the caller -> clamp to the field's C# type range (byte 0..255, short,
+			// ushort, sbyte, char) so a narrow integer field can't be dragged or typed out of range — same as
+			// Unity's default field. Wide types (int/long/float) stay unclamped.
+			if (min <= float.MinValue && max >= float.MaxValue && TryGetNumericTypeBounds(prop, out float typeMin, out float typeMax)) {
+				min = typeMin;
+				max = typeMax;
+			}
+
 			var row = new VisualElement { style = { flexDirection = UnityEngine.UIElements.FlexDirection.Row, alignItems = Align.Center, flexGrow = 1 } };
 
 			VisualElement grip = MakeDragGrip();
@@ -49,7 +57,12 @@ namespace Sperlich.EditorKit {
 			}
 			input.style.flexGrow = 1;
 			input.style.marginLeft = 2;
+			// A flex item defaults to min-width:auto (min-content), so a long value like "28.95106" would
+			// force the field wider than any explicit width. minWidth:0 lets it stay put and clip instead.
+			input.style.minWidth = 0;
 			SperlichFieldColumn.HideInternalLabel(input);
+			VisualElement textInput = input.Q("unity-text-input");
+			if (textInput != null) textInput.style.minWidth = 0;
 
 			row.Add(grip);
 			row.Add(input);
@@ -149,6 +162,9 @@ namespace Sperlich.EditorKit {
 			return row;
 		}
 
+		/// <summary>Öffentlicher Zugriff auf das 2×3-Punkte-Ziehgriff-Icon (z.B. als Reorder-Handle in Listen).</summary>
+		public static VisualElement CreateDragGrip() => MakeDragGrip();
+
 		/// <summary>Kleines 2×3-Punkte-Ziehgriff-Icon (Sperlich-Stil), gezeichnet mit Painter2D — kein Font-Glyph.</summary>
 		private static VisualElement MakeDragGrip() {
 			var g = new VisualElement { pickingMode = PickingMode.Position };
@@ -187,6 +203,33 @@ namespace Sperlich.EditorKit {
 		/// (dann lieber Unitys Slider behalten statt es zum Drag-Zahlenfeld zu machen).</summary>
 		public static bool PropertyHasRange(SerializedProperty prop) {
 			return TryGetRange(prop, out _, out _);
+		}
+
+		/// <summary>Ermittelt die gültige Wertegrenze aus dem deklarierten C#-Typ des Feldes hinter
+		/// <paramref name="prop"/> — nur für schmale Integer-Typen (<c>byte</c>, <c>sbyte</c>, <c>short</c>,
+		/// <c>ushort</c>, <c>char</c>), bei denen ein <c>IntegerField</c> sonst über den Typ-Bereich hinaus
+		/// ziehbar wäre. Für <c>int</c>/<c>long</c>/<c>float</c>/<c>uint</c>/<c>ulong</c> gibt es <c>false</c>
+		/// zurück (keine künstliche Begrenzung). Findet das Feld nur bei Top-Level-Properties (wie
+		/// <see cref="TryGetRange"/>).</summary>
+		public static bool TryGetNumericTypeBounds(SerializedProperty prop, out float min, out float max) {
+			min = 0f;
+			max = 0f;
+			if (prop?.serializedObject?.targetObject == null) return false;
+
+			FieldInfo fi = null;
+			for (Type t = prop.serializedObject.targetObject.GetType(); t != null && t != typeof(object); t = t.BaseType) {
+				fi = t.GetField(prop.name, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance);
+				if (fi != null) break;
+			}
+			if (fi == null) return false;
+
+			Type ft = fi.FieldType;
+			if (ft == typeof(byte)) { min = byte.MinValue; max = byte.MaxValue; return true; }
+			if (ft == typeof(sbyte)) { min = sbyte.MinValue; max = sbyte.MaxValue; return true; }
+			if (ft == typeof(short)) { min = short.MinValue; max = short.MaxValue; return true; }
+			if (ft == typeof(ushort)) { min = ushort.MinValue; max = ushort.MaxValue; return true; }
+			if (ft == typeof(char)) { min = char.MinValue; max = char.MaxValue; return true; }
+			return false;
 		}
 
 		/// <summary>Ermittelt min/max, falls das Feld hinter <paramref name="prop"/> ein <see cref="RangeAttribute"/> trägt.</summary>
@@ -334,14 +377,16 @@ namespace Sperlich.EditorKit {
 
 		/// <summary>Kleines Drag-Zahlenfeld (Griff + Feld), das NICHT an ein SerializedProperty gebunden ist,
 		/// sondern über <paramref name="get"/>/<paramref name="set"/> läuft (für abgeleitete Werte wie Winkel /
-		/// Abstand). Die zurückgegebene Action schreibt den aktuellen <paramref name="get"/>-Wert ins Feld.</summary>
-		private static (VisualElement element, Action sync) MakeVirtualDragNumber(string caption, Func<float> get, Action<float> set, float speed, string suffix) {
+		/// Abstand oder die von/bis-Enden eines Min-Max-Sliders). Die zurückgegebene Action schreibt den
+		/// aktuellen <paramref name="get"/>-Wert ins Feld. Leere <paramref name="caption"/> = kein Label davor.</summary>
+		public static (VisualElement element, Action sync) MakeVirtualDragNumber(string caption, Func<float> get, Action<float> set, float speed, string suffix) {
 			var wrap = new VisualElement { style = { flexDirection = UnityEngine.UIElements.FlexDirection.Row, alignItems = Align.Center, marginBottom = 1 } };
 
-			var cap = new Label(caption) { style = { fontSize = 10, color = SperlichEditorTheme.TextMuted, marginRight = 5, flexShrink = 0, unityTextAlign = TextAnchor.MiddleLeft } };
 			VisualElement grip = MakeDragGrip();
-			var field = new FloatField { style = { flexGrow = 1 } };
+			var field = new FloatField { style = { flexGrow = 1, minWidth = 0 } };
 			SperlichFieldColumn.HideInternalLabel(field);
+			VisualElement textInput = field.Q("unity-text-input");
+			if (textInput != null) textInput.style.minWidth = 0;
 			field.SetValueWithoutNotify(get());
 
 			var dragger = new FieldMouseDragger<float>(field);
@@ -351,7 +396,9 @@ namespace Sperlich.EditorKit {
 
 			field.RegisterValueChangedCallback(e => { set(e.newValue); Sync(); });
 
-			wrap.Add(cap);
+			if (!string.IsNullOrEmpty(caption)) {
+				wrap.Add(new Label(caption) { style = { fontSize = 10, color = SperlichEditorTheme.TextMuted, marginRight = 5, flexShrink = 0, unityTextAlign = TextAnchor.MiddleLeft } });
+			}
 			wrap.Add(grip);
 			wrap.Add(field);
 			if (string.IsNullOrEmpty(suffix) == false) {

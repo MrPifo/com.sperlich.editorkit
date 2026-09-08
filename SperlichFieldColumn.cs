@@ -63,13 +63,10 @@ namespace Sperlich.EditorKit {
 			return row;
 		}
 
-		/// <summary>Zeile mit einem Float-Slider und integriertem Zahlen-Eingabefeld.</summary>
+		/// <summary>Zeile mit einem Float-Range-Slider (Sperlich-Design C: dünne Schiene + Griff + Drag-/Tipp-Feld).</summary>
 		public VisualElement Slider(SerializedProperty prop, string label = null, float min = 0f, float max = 1f, int indent = 0) {
 			if (prop == null) return new VisualElement();
-			var s = new Slider(min, max) { showInputField = true, style = { flexGrow = 1 } };
-			s.BindProperty(prop);
-			HideInternalLabel(s);
-			return Row(label ?? prop.displayName, s, indent);
+			return Row(label ?? prop.displayName, SperlichEditorWidgets.CreateRangeSlider(prop, min, max, intMode: false), indent);
 		}
 
 		/// <summary>Zeile mit einem Integer-Slider und integriertem Zahlen-Eingabefeld (snappt nur auf ganze Zahlen, unterstützt Int- und Float-Properties).</summary>
@@ -77,25 +74,10 @@ namespace Sperlich.EditorKit {
 			return SliderInt(prop, label, min, max, indent);
 		}
 
-		/// <summary>Zeile mit einem Integer-Slider und integriertem Zahlen-Eingabefeld (snappt nur auf ganze Zahlen, unterstützt Int- und Float-Properties).</summary>
+		/// <summary>Zeile mit einem Integer-Range-Slider (snappt auf ganze Zahlen + Tick-Marken, unterstützt Int- und Float-Properties).</summary>
 		public VisualElement SliderInt(SerializedProperty prop, string label = null, int min = 0, int max = 10, int indent = 0) {
 			if (prop == null) return new VisualElement();
-			var s = new SliderInt(min, max) { showInputField = true, style = { flexGrow = 1 } };
-			if (prop.propertyType == SerializedPropertyType.Integer) {
-				s.BindProperty(prop);
-			} else {
-				s.value = Mathf.RoundToInt(prop.floatValue);
-				s.RegisterValueChangedCallback(evt => {
-					prop.floatValue = evt.newValue;
-					prop.serializedObject.ApplyModifiedProperties();
-				});
-				s.TrackPropertyValue(prop, _ => {
-					int target = Mathf.RoundToInt(prop.floatValue);
-					if (s.value != target) s.value = target;
-				});
-			}
-			HideInternalLabel(s);
-			return Row(label ?? prop.displayName, s, indent);
+			return Row(label ?? prop.displayName, SperlichEditorWidgets.CreateRangeSlider(prop, min, max, intMode: true), indent);
 		}
 
 		/// <summary>Zeile mit einem Drag-Zahlenfeld und optionaler Min/Max-Begrenzung.</summary>
