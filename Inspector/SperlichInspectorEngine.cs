@@ -18,8 +18,12 @@ namespace Sperlich.EditorKit {
 	/// routes bool → pill, enum → flat dropdown, number → drag field, range → slider, and falls back to a
 	/// <c>PropertyField</c> otherwise); this engine only adds the cases that helper does not cover
 	/// (flags enums, multiline text, nested foldouts, collections) plus the per-row prefab-override bar.</para>
+	///
+	/// <para>Split across partials: <c>.Groups</c> ([Box] runs), <c>.Members</c> ([SButton] / [ButtonGroup]
+	/// / [ShowProperty] / [ShowField]) and <c>.Decorations</c> ([HLine] / [SReadOnly] / [SuffixLabel] /
+	/// [Unit] / [InlineButton] / [TintColor] / [OnValueChanged] / [ProgressBar]).</para>
 	/// </summary>
-	public static class SperlichInspectorEngine {
+	public static partial class SperlichInspectorEngine {
 
 		public const string RootClass = "sperlich-inspector";
 		private static readonly Color Accent = SperlichEditorTheme.ButtonAccent;
@@ -53,50 +57,144 @@ namespace Sperlich.EditorKit {
 		private readonly struct Member {
 			public readonly SerializedProperty Prop;
 			public readonly SperlichInspectorPlan.MemberMeta Meta;
-			public Member(SerializedProperty prop, SperlichInspectorPlan.MemberMeta meta) { Prop = prop; Meta = meta; }
+			public readonly string Name;
+			public Member(SerializedProperty prop, SperlichInspectorPlan.MemberMeta meta) {
+				Prop = prop; Meta = meta; Name = prop.name;
+			}
 		}
 
 		private static void BuildInto(VisualElement container, SerializedObject so, SperlichInspectorPlan plan) {
 			var col = new SperlichFieldColumn(150f);
+			bool showScript = ResolveShowScript(so);
 
 			var members = new List<Member>();
 			SerializedProperty it = so.GetIterator();
 			bool enterChildren = true;
 			while (it.NextVisible(enterChildren)) {
 				enterChildren = false;
-				if (it.name == "m_Script") { container.Add(BuildScriptRow(col, it.Copy())); continue; }
+				if (it.name == "m_Script") {
+					if (showScript) container.Add(BuildScriptRow(col, it.Copy()));
+					continue;
+				}
 				members.Add(new Member(it.Copy(), plan?.Get(it.name)));
 			}
 
-			for (int i = 0; i < members.Count; i++) {
-				Member m = members[i];
-				string groupKey = m.Meta?.RowGroup;
+			List<PendingEmit> pending = BuildPendingEmits(plan, members, so);
+			Dictionary<int, (int end, BoxAttribute box, string firstName)> boxSpans = ComputeBoxSpans(members);
+			(Dictionary<int, string> tabIndexGroup, Dictionary<string, TabGroupSpec> tabSpecs) = ComputeTabGroups(members);
+			var tabGroupBuilt = new HashSet<string>();
 
-				// [SRow] on an inline-able scalar -> collect the adjacent same-key run and lay it out horizontally.
-				if (groupKey != null && CanInline(m.Prop)) {
-					int end = i;
-					while (end < members.Count
-					       && members[end].Meta?.RowGroup == groupKey
-					       && CanInline(members[end].Prop)) {
-						end++;
+			VisualElement target = container;
+			int activeBoxEnd = -1;
+
+			for (int i = 0; i < members.Count; i++) {
+				if (activeBoxEnd == i) { target = container; activeBoxEnd = -1; }
+
+				// [TabGroup]: pulled out of normal in-order emission (members can be scattered across the
+				// class) — the whole tab bar is built once, at the first member of the group.
+				if (tabIndexGroup.TryGetValue(i, out string tgKey)) {
+					if (tabGroupBuilt.Add(tgKey)) {
+						target.Add(BuildTabGroupBlock(tgKey, tabSpecs[tgKey], members, col, so, plan));
 					}
-					EmitDecorators(container, m.Meta);
-					container.Add(BuildHorizontalGroup(members, i, end));
-					i = end - 1;
 					continue;
 				}
 
-				EmitDecorators(container, m.Meta);
-				VisualElement row = BuildRow(col, m.Prop, m.Meta);
-				if (m.Meta != null && !string.IsNullOrEmpty(m.Meta.Tooltip)) row.tooltip = m.Meta.Tooltip;
-				container.Add(row);
+				// First member overall: no leading [Space]/[Header] gap at the very top of the inspector.
+				bool tightHeader = i == 0;
+				if (boxSpans.TryGetValue(i, out (int end, BoxAttribute box, string firstName) span)) {
+					target = BuildBoxContainer(container, so, span.box, span.firstName);
+					activeBoxEnd = span.end;
+					// A [Header] as the box's first child butts flush against the chevron strip; a plain
+					// first row keeps a little breathing room at the top of the body.
+					bool leadHeader = members[i].Meta != null && !string.IsNullOrEmpty(members[i].Meta.Header);
+					tightHeader = leadHeader;
+					if (!leadHeader) target.style.paddingTop = 3;
+				}
+
+				FlushPinned(pending, target, so, before: members[i].Name);
+
+				int next = EmitMemberAt(target, col, members, i, so, plan, tightHeader);
+				for (int k = i; k < next; k++) FlushPinned(pending, target, so, after: members[k].Name);
+				i = next - 1;
 			}
+
+			FlushUnpinned(pending, container, so);
 		}
 
-		private static void EmitDecorators(VisualElement container, SperlichInspectorPlan.MemberMeta meta) {
+		/// <summary>Emits the member (or the whole <c>[SRow]</c> run) starting at <paramref name="i"/> into
+		/// <paramref name="parent"/> and returns the index of the next member to process.</summary>
+		private static int EmitMemberAt(VisualElement parent, SperlichFieldColumn col, List<Member> members, int i, SerializedObject so, SperlichInspectorPlan plan, bool tightHeader = false) {
+			Member m = members[i];
+			string groupKey = m.Meta?.RowGroup;
+
+			// [ShowIf] / [HideIf]: route the member's decorators + row into a wrapper we can toggle as a unit.
+			SperlichInspectorPlan.MemberMeta.VisCondition cond = m.Meta?.Visibility;
+			VisualElement sink = cond != null ? new VisualElement { style = { flexShrink = 0 } } : parent;
+			int next;
+
+			// [SRow] on an inline-able scalar -> collect the adjacent same-key run and lay it out horizontally.
+			if (groupKey != null && CanInline(m.Prop)) {
+				int end = i;
+				while (end < members.Count
+				       && members[end].Meta?.RowGroup == groupKey
+				       && CanInline(members[end].Prop)) {
+					end++;
+				}
+				EmitDecorators(sink, m.Meta, so, tightHeader);
+				sink.Add(BuildHorizontalGroup(members, i, end));
+				next = end;
+			} else {
+				EmitDecorators(sink, m.Meta, so, tightHeader);
+				VisualElement row = BuildRow(col, m.Prop, m.Meta);
+				if (m.Meta != null && !string.IsNullOrEmpty(m.Meta.Tooltip)) row.tooltip = m.Meta.Tooltip;
+				row = PostProcessRow(row, m.Prop, m.Meta, so);
+				sink.Add(row);
+				next = i + 1;
+			}
+
+			if (cond != null) {
+				ApplyVisibilityCondition(sink, cond, so);
+				parent.Add(sink);
+			}
+			return next;
+		}
+
+		/// <summary>Per-type <c>[SInspector(showScript:)]</c> OR the global Tools-menu toggle.</summary>
+		private static bool ResolveShowScript(SerializedObject so) {
+			if (SInspectorMenu.ShowScriptField) return true;
+			Type t = so?.targetObject != null ? so.targetObject.GetType() : null;
+			if (t == null) return false;
+			var attr = (SInspectorAttribute)Attribute.GetCustomAttribute(t, typeof(SInspectorAttribute), true);
+			return attr != null && attr.ShowScript;
+		}
+
+		private static void EmitDecorators(VisualElement container, SperlichInspectorPlan.MemberMeta meta, SerializedObject so, bool tightHeader = false) {
 			if (meta == null) return;
-			if (meta.SpaceBefore > 0f) container.Add(new VisualElement { style = { height = meta.SpaceBefore, flexShrink = 0 } });
-			if (!string.IsNullOrEmpty(meta.Header)) container.Add(BuildHeader(meta.Header));
+			if (!tightHeader && meta.SpaceBefore > 0f) container.Add(new VisualElement { style = { height = meta.SpaceBefore, flexShrink = 0 } });
+			if (meta.HLines != null) {
+				foreach ((string label, string colorHtml, LineStyle style) in meta.HLines) {
+					Color c = SperlichEditorTheme.BorderStrong;
+					if (!string.IsNullOrEmpty(colorHtml)) ColorUtility.TryParseHtmlString(colorHtml, out c);
+					container.Add(SperlichEditorWidgets.CreateSeparatorLine(label, c, style));
+				}
+			}
+			if (!string.IsNullOrEmpty(meta.Header)) container.Add(BuildHeader(meta.Header, tightHeader));
+
+			if (meta.InfoBoxes != null) {
+				foreach ((string message, InfoBoxType type, string visibleIf) in meta.InfoBoxes) {
+					SperlichEditorWidgets.MessageKind kind = type switch {
+						InfoBoxType.Warning => SperlichEditorWidgets.MessageKind.Warning,
+						InfoBoxType.Error => SperlichEditorWidgets.MessageKind.Error,
+						_ => SperlichEditorWidgets.MessageKind.Info,
+					};
+					VisualElement box = SperlichEditorWidgets.CreateMessageBox(message, kind);
+					if (!string.IsNullOrEmpty(visibleIf) && so != null) {
+						var cond = new SperlichInspectorPlan.MemberMeta.VisCondition { Member = visibleIf, Values = Array.Empty<object>(), Hide = false };
+						ApplyVisibilityCondition(box, cond, so);
+					}
+					container.Add(box);
+				}
+			}
 		}
 
 		// ── horizontal [SRow] groups ─────────────────────────────────────────────────
@@ -145,6 +243,9 @@ namespace Sperlich.EditorKit {
 			};
 			cell.Add(caption);
 			cell.Add(BuildInlineControl(m));
+			// Per-cell prefab-override affordance ([SRow] members had none). Slim gutter offset so the bar
+			// sits in the inter-cell gap rather than under the previous cell.
+			SperlichPrefabOverride.Attach(cell, caption, m.Prop, barLeft: -3);
 			return cell;
 		}
 
@@ -181,32 +282,97 @@ namespace Sperlich.EditorKit {
 		private static VisualElement BuildRow(SperlichFieldColumn col, SerializedProperty prop, SperlichInspectorPlan.MemberMeta meta) {
 			Type declaredType = meta?.Field?.FieldType;
 
+			// [EnumToggleButtons] -> segmented (plain) / toggle bar ([Flags]). Before the generic enum branch.
+			if (meta != null && meta.EnumToggleButtons && prop.propertyType == SerializedPropertyType.Enum) {
+				VisualElement toggles = BuildEnumToggleButtons(prop, meta);
+				return OverrideRow(col.Row(meta.EnumToggleLabel ?? prop.displayName, toggles), prop);
+			}
+
+			// [ProgressBar] -> read-only fill bar tracking the value.
+			if (meta != null && meta.HasProgressBar
+			    && (prop.propertyType == SerializedPropertyType.Integer || prop.propertyType == SerializedPropertyType.Float)) {
+				return OverrideRow(col.Row(prop.displayName, BuildProgressBarControl(prop, meta)), prop);
+			}
+
+			// [Percent] -> editable 0-100% field mapped onto the field's own [min,max].
+			if (meta != null && meta.HasPercent && prop.propertyType == SerializedPropertyType.Float) {
+				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreatePercentField(prop, meta.PercentMin, meta.PercentMax, Accent)), prop);
+			}
+
+			// [Knob] -> rotary dial (custom range, or a KnobRange angle preset).
+			if (meta != null && meta.HasKnob
+			    && (prop.propertyType == SerializedPropertyType.Integer || prop.propertyType == SerializedPropertyType.Float)) {
+				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateKnobField(prop, meta.KnobMin, meta.KnobMax, meta.KnobDiameter, Accent)), prop);
+			}
+
+			// [Stepper] -> [-][value][+].
+			if (meta != null && meta.HasStepper
+			    && (prop.propertyType == SerializedPropertyType.Integer || prop.propertyType == SerializedPropertyType.Float)) {
+				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateStepperField(prop, meta.StepperStep, meta.StepperMin, meta.StepperMax, Accent)), prop);
+			}
+
+			// [Expandable] -> object field with the assigned asset's own inspector foldable inline below it.
+			if (meta != null && meta.IsExpandable && prop.propertyType == SerializedPropertyType.ObjectReference) {
+				return OverrideRow(SperlichEditorWidgets.CreateExpandableField(prop, meta.Field?.FieldType, meta.ExpandableDefaultOpen, prop.displayName, Accent), prop);
+			}
+
+			// [Scene] -> Build-Settings scene dropdown (string name / int build index).
+			if (meta != null && meta.IsScene
+			    && (prop.propertyType == SerializedPropertyType.String || prop.propertyType == SerializedPropertyType.Integer)) {
+				bool intMode = prop.propertyType == SerializedPropertyType.Integer;
+				VisualElement sd = SperlichEditorWidgets.CreateSceneDropdown(prop, intMode, meta.SceneUseFullPath, Accent);
+				return OverrideRow(col.Row(prop.displayName, sd), prop);
+			}
+
+			// Single [SerializeReference] field -> native, explicitly-bound PropertyField (only it renders the
+			// polymorphic type picker + sub-fields), wrapped so it gets the prefab-override bar / Apply-Revert
+			// menu (the managed-reference PropertyField doesn't surface those itself).
+			if (prop.propertyType == SerializedPropertyType.ManagedReference) {
+				return OverrideRow(FullWidthPropertyField(prop), prop);
+			}
+
+			// [SerializeReference] list -> Sperlich collection card; each element is a bound PropertyField
+			// (via CompactControl) so it keeps the type picker AND gets a per-element override bar / menu.
+			if (prop.isArray && meta != null && meta.IsSerializeReference) {
+				return OverrideRow(BuildArrayBackedList(prop, prop, prop.displayName, warnDuplicates: false,
+					elemType: declaredType != null ? SperlichInspectorPlan.ElementType(declaredType) : null,
+					polymorphic: true), prop);
+			}
+
 			// SDictionary<,> / SHashSet<> -> Sperlich key→value / value list (before the generic-foldout branch,
 			// which would otherwise expand the two backing _keys/_values lists raw).
 			if (declaredType != null && declaredType.IsGenericType) {
 				Type gd = declaredType.GetGenericTypeDefinition();
-				if (gd == typeof(SDictionary<,>)) return BuildDictionaryRow(prop);
-				if (gd == typeof(SHashSet<>)) return BuildArrayBackedList(prop.FindPropertyRelative("_items"), prop, prop.displayName, warnDuplicates: true, elemType: ElemArg(declaredType, 0), addText: "+ Wert", emptyText: "Leeres Set");
+				if (gd == typeof(SDictionary<,>)) return OverrideRow(BuildDictionaryRow(prop), prop);
+				if (gd == typeof(SHashSet<>)) return OverrideRow(BuildArrayBackedList(prop.FindPropertyRelative("_items"), prop, prop.displayName, warnDuplicates: true, elemType: ElemArg(declaredType, 0), addText: "+ Add", emptyText: "Empty set"), prop);
 			}
 
 			// Arrays / Lists (element type without its own drawer) -> Sperlich compact-row collection editor.
 			bool isCollection = prop.isArray && prop.propertyType != SerializedPropertyType.String;
 			bool elementHasDrawer = meta != null && meta.ElementTypeHasDrawer;
 			if (isCollection && !elementHasDrawer) {
-				return BuildArrayBackedList(prop, prop, prop.displayName, warnDuplicates: false,
-					elemType: declaredType != null ? SperlichInspectorPlan.ElementType(declaredType) : null);
+				return OverrideRow(BuildArrayBackedList(prop, prop, prop.displayName, warnDuplicates: false,
+					elemType: declaredType != null ? SperlichInspectorPlan.ElementType(declaredType) : null), prop);
 			}
 
-			// Everything else that keeps a plain PropertyField: [SerializeReference], drawer types (SEvent),
-			// and collections whose element type has its own drawer.
+			// Collections whose element type has its own drawer (List<SEvent>, …) -> native list drawer.
 			bool hasOwnDrawer = elementHasDrawer || PropertyDrawerRegistry.HasCustomDrawerForName(prop.type);
-			if (isCollection || prop.propertyType == SerializedPropertyType.ManagedReference || hasOwnDrawer) {
+			if (isCollection) {
 				return FullWidthPropertyField(prop);
 			}
 
+			// Single field with its own PropertyDrawer (SEvent, …). The drawer doesn't surface the
+			// prefab-override bar, so add ours.
+			if (hasOwnDrawer) {
+				return OverrideRow(FullWidthPropertyField(prop), prop);
+			}
+
 			// Nested serializable struct/class without a drawer -> foldout that recurses with the same engine.
+			// Wrapped so the foldout itself carries the override bar when any descendant field is changed
+			// (its child rows still get their own per-field bar + Apply/Revert; the outer one bails when a
+			// right-click lands inside a child scope).
 			if (prop.propertyType == SerializedPropertyType.Generic && prop.hasVisibleChildren) {
-				return BuildNestedFoldout(prop);
+				return OverrideRow(BuildNestedFoldout(prop), prop);
 			}
 
 			// Bool -> pill toggle (mixed-value aware). Not a bound BaseField, so it needs the manual bar.
@@ -243,7 +409,7 @@ namespace Sperlich.EditorKit {
 			if (TryVectorComponents(prop, out string[] caps, out SerializedProperty[] parts)) {
 				var cluster = SperlichEditorWidgets.CreateFieldCluster(46,
 					BuildVectorCells(caps, parts));
-				return col.Row(prop.displayName, cluster);
+				return OverrideRow(col.Row(prop.displayName, cluster), prop);
 			}
 
 			// Object reference -> bound ObjectField + a grey "×" clear button on the right.
@@ -251,26 +417,77 @@ namespace Sperlich.EditorKit {
 				Type objType = meta?.Field?.FieldType;
 				bool sceneOk = prop.serializedObject.targetObject == null
 					|| !EditorUtility.IsPersistent(prop.serializedObject.targetObject);
-				return col.Row(prop.displayName, SperlichEditorWidgets.CreateObjectField(prop, objType, sceneOk));
+				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateObjectField(prop, objType, sceneOk)), prop);
 			}
 
-			// Multiline string -> bound TextField (self-indicates overrides via the binding system).
+			// Multiline string -> bound TextField in a Sperlich row.
 			if (prop.propertyType == SerializedPropertyType.String && meta != null && meta.Multiline) {
 				var tf = new TextField { multiline = true, style = { flexGrow = 1, whiteSpace = WhiteSpace.Normal } };
 				tf.BindProperty(prop);
 				SperlichFieldColumn.HideInternalLabel(tf);
 				VisualElement inner = tf.Q("unity-text-input");
 				if (inner != null) inner.style.minHeight = 18 * Mathf.Max(2, meta.MultilineRows);
-				return col.Row(prop.displayName, tf);
+				return OverrideRow(col.Row(prop.displayName, tf), prop);
 			}
 
-			// Everything else: number / range / string / color / gradient / vector / object / curve / …
-			// SperlichFieldColumn.Property returns a bound BaseField or a PropertyField — both already draw
-			// the prefab-override bar + Apply/Revert menu themselves, so no manual bar here (would double up).
+			// Plain string -> bound TextField in a Sperlich row. Same external 150px label column as every
+			// other row (the PropertyField fallback below indents its own internal label differently, which
+			// is what made string rows sit a few px off from number rows).
+			if (prop.propertyType == SerializedPropertyType.String) {
+				var tf = new TextField { style = { flexGrow = 1 } };
+				tf.BindProperty(prop);
+				SperlichFieldColumn.HideInternalLabel(tf);
+				return OverrideRow(col.Row(prop.displayName, tf), prop);
+			}
+
+			// Plain number / [Range] -> hand-built Sperlich drag field or slider. These are not native
+			// PropertyFields, so they need the manual prefab-override bar too (this was the "numbers show
+			// no blue bar" gap).
+			if (prop.propertyType == SerializedPropertyType.Integer || prop.propertyType == SerializedPropertyType.Float) {
+				if (SperlichEditorWidgets.TryGetRange(prop, out float rMin, out float rMax)) {
+					bool intMode = prop.propertyType == SerializedPropertyType.Integer;
+					VisualElement slider = SperlichEditorWidgets.CreateRangeSlider(prop, rMin, rMax, intMode, Accent);
+					return OverrideRow(col.Row(prop.displayName, slider), prop);
+				}
+				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateDragNumberField(prop)), prop);
+			}
+
+			// Color -> bound ColorField in a Sperlich row.
+			if (prop.propertyType == SerializedPropertyType.Color) {
+				var cf = new UnityEditor.UIElements.ColorField { style = { flexGrow = 1 }, showAlpha = true };
+				cf.BindProperty(prop);
+				SperlichFieldColumn.HideInternalLabel(cf);
+				return OverrideRow(col.Row(prop.displayName, cf), prop);
+			}
+
+			// Gradient -> bound GradientField in a Sperlich row.
+			if (prop.propertyType == SerializedPropertyType.Gradient) {
+				var gf = new UnityEditor.UIElements.GradientField { style = { flexGrow = 1 } };
+				gf.BindProperty(prop);
+				SperlichFieldColumn.HideInternalLabel(gf);
+				return OverrideRow(col.Row(prop.displayName, gf), prop);
+			}
+
+			// Everything else: curve / rect / bounds / quaternion / hash128 / …
+			// SperlichFieldColumn.Property returns a bound BaseField or a native PropertyField for these,
+			// which draw Unity's own prefab-override bar + Apply/Revert menu.
 			return col.Property(prop);
 		}
 
 		private static VisualElement OverrideRow(VisualElement row, SerializedProperty prop) {
+			// A PropertyField owns and rebuilds its own child list (on rebind / re-attach, and heavily so for
+			// custom UITK drawers like SEvent's). A bar added straight into it is silently cleared on the next
+			// rebuild — the Apply/Revert menu still works but the blue indicator vanishes. Wrap it in a plain
+			// container the field can't touch and hang the override affordances off that.
+			if (row is PropertyField) {
+				var wrap = new VisualElement { style = { position = Position.Relative, marginTop = 1, marginBottom = 1 } };
+				row.style.marginTop = 0;
+				row.style.marginBottom = 0;
+				wrap.Add(row);
+				// No single "row label" to bold on a drawer tree — the gutter bar carries the indicator.
+				SperlichPrefabOverride.Attach(wrap, null, prop);
+				return wrap;
+			}
 			SperlichPrefabOverride.Attach(row, row.Q<Label>(), prop);
 			return row;
 		}
@@ -359,63 +576,198 @@ namespace Sperlich.EditorKit {
 			style = { fontSize = 9, color = SperlichEditorTheme.BadgeDangerBg, marginTop = 1, marginLeft = 2, whiteSpace = WhiteSpace.Normal }
 		};
 
+		/// <summary>Seeds a freshly added collection element with a value not already used by the earlier
+		/// elements — so an <c>SHashSet</c> / <c>SDictionary</c> entry survives the
+		/// <c>ISerializationCallbackReceiver</c> de-dup that runs on every serialize.</summary>
+		private static void SeedUniqueElement(SerializedProperty arr, int idx) {
+			try {
+				if (arr == null || idx < 0 || idx >= arr.arraySize) return;
+				SerializedProperty e = arr.GetArrayElementAtIndex(idx);
+				switch (e.propertyType) {
+					case SerializedPropertyType.Integer: {
+						long max = long.MinValue;
+						for (int j = 0; j < idx; j++) max = Math.Max(max, arr.GetArrayElementAtIndex(j).longValue);
+						e.longValue = idx == 0 ? 0 : max + 1;
+						break;
+					}
+					case SerializedPropertyType.Float: {
+						float max = float.MinValue;
+						for (int j = 0; j < idx; j++) max = Mathf.Max(max, arr.GetArrayElementAtIndex(j).floatValue);
+						e.floatValue = idx == 0 ? 0f : max + 1f;
+						break;
+					}
+					case SerializedPropertyType.String: {
+						var used = new HashSet<string>();
+						for (int j = 0; j < idx; j++) used.Add(arr.GetArrayElementAtIndex(j).stringValue);
+						string s = "new";
+						int n = 1;
+						while (used.Contains(s)) s = "new" + (++n);
+						e.stringValue = s;
+						break;
+					}
+					case SerializedPropertyType.Enum: {
+						int count = e.enumNames?.Length ?? 0;
+						var used = new HashSet<int>();
+						for (int j = 0; j < idx; j++) used.Add(arr.GetArrayElementAtIndex(j).enumValueIndex);
+						for (int c = 0; c < count; c++) if (!used.Contains(c)) { e.enumValueIndex = c; break; }
+						break;
+					}
+				}
+			} catch { /* best effort */ }
+		}
+
+		/// <summary>Type picker for a <c>[SerializeReference]</c> list's "+" button: lists every instantiable
+		/// type assignable to <paramref name="baseType"/>, and on pick appends one element and assigns a fresh
+		/// instance to its <c>managedReferenceValue</c>.</summary>
+		private static void ShowManagedReferenceTypeMenu(string arrPath, Type baseType, SerializedObject so) {
+			var types = new List<Type>();
+			if (!baseType.IsAbstract && !baseType.IsInterface && baseType.GetConstructor(Type.EmptyTypes) != null) {
+				types.Add(baseType);
+			}
+			foreach (Type t in TypeCache.GetTypesDerivedFrom(baseType)) {
+				if (t.IsAbstract || t.IsInterface || t.IsGenericTypeDefinition) continue;
+				if (typeof(UnityEngine.Object).IsAssignableFrom(t)) continue; // managed refs can't hold UnityEngine.Objects
+				if (t.GetConstructor(Type.EmptyTypes) == null) continue;
+				types.Add(t);
+			}
+			types.Sort((a, b) => string.CompareOrdinal(a.Name, b.Name));
+
+			var menu = new GenericMenu();
+			if (types.Count == 0) {
+				menu.AddDisabledItem(new GUIContent($"No instantiable type for {baseType.Name}"));
+				menu.ShowAsContext();
+				return;
+			}
+			foreach (Type t in types) {
+				Type captured = t;
+				string ns = string.IsNullOrEmpty(t.Namespace) ? string.Empty : t.Namespace + "/";
+				menu.AddItem(new GUIContent(ns + ObjectNames.NicifyVariableName(t.Name)), false, () => {
+					SerializedProperty a = so.FindProperty(arrPath);
+					if (a == null) return;
+					int idx = a.arraySize;
+					a.arraySize = idx + 1;
+					SerializedProperty e = a.GetArrayElementAtIndex(idx);
+					try { e.managedReferenceValue = Activator.CreateInstance(captured); }
+					catch (Exception ex) { Debug.LogException(ex); }
+					so.ApplyModifiedProperties();
+				});
+			}
+			menu.ShowAsContext();
+		}
+
 		internal static VisualElement BuildArrayBackedList(SerializedProperty arr, SerializedProperty owner, string title,
-			bool warnDuplicates, Type elemType, string addText = "+ Eintrag", string emptyText = "Keine Einträge") {
+			bool warnDuplicates, Type elemType, string addText = "+ Add", string emptyText = "No entries", bool polymorphic = false) {
 
 			if (arr == null || !arr.isArray) return FullWidthPropertyField(owner);
 			SerializedObject so = arr.serializedObject;
+			string arrPath = arr.propertyPath;
+			// Re-resolve every time: SHashSet / SDictionary rewrite their backing list on each serialize
+			// (ISerializationCallbackReceiver), which invalidates a cached SerializedProperty -> NRE.
+			SerializedProperty Arr() => so.FindProperty(arrPath);
 			string persist = (so.targetObject != null ? so.targetObject.GetType().Name : "x") + "/" + owner.propertyPath;
+
+			// [SerializeReference] list: "+" can't just grow the array (the element would be a null managed
+			// reference with no way to pick a concrete type in the compact row). Open a type menu instead.
+			Action onAdd = polymorphic && elemType != null
+				? () => ShowManagedReferenceTypeMenu(arrPath, elemType, so)
+				: () => {
+					SerializedProperty a = Arr();
+					if (a == null) return;
+					a.arraySize++;
+					if (warnDuplicates) SeedUniqueElement(a, a.arraySize - 1);
+					so.ApplyModifiedProperties();
+				};
 
 			var (element, rebuild) = SperlichEditorWidgets.CreateCollectionList(
 				title, persist,
-				() => arr.arraySize,
-				() => { arr.arraySize++; so.ApplyModifiedProperties(); },
-				i => { DeleteArrayElement(arr, i); so.ApplyModifiedProperties(); },
-				(a, b) => { arr.MoveArrayElement(a, b); so.ApplyModifiedProperties(); },
+				() => { SerializedProperty a = Arr(); return a != null ? a.arraySize : 0; },
+				onAdd,
+				i => { SerializedProperty a = Arr(); if (a == null) return; DeleteArrayElement(a, i); so.ApplyModifiedProperties(); },
+				(x, y) => { SerializedProperty a = Arr(); if (a == null) return; a.MoveArrayElement(x, y); so.ApplyModifiedProperties(); },
 				(i, host) => {
-					VisualElement ctl = SperlichEditorWidgets.CompactControl(arr.GetArrayElementAtIndex(i).Copy(), Accent, _ => elemType);
+					SerializedProperty a = Arr();
+					if (a == null || i < 0 || i >= a.arraySize) return;
+					SerializedProperty elem = a.GetArrayElementAtIndex(i).Copy();
+					VisualElement ctl = SperlichEditorWidgets.CompactControl(elem, Accent, _ => elemType);
 					ctl.style.flexGrow = 1;
 					host.Add(ctl);
-					if (warnDuplicates && IsDuplicateAt(arr, i)) host.Add(DuplicateWarning("Doppelter Wert — wird beim Serialisieren verworfen"));
+					SperlichPrefabOverride.Attach(host, null, elem);
+					if (warnDuplicates && IsDuplicateAt(a, i)) host.Add(DuplicateWarning("Duplicate value — dropped on serialize"));
 				},
 				Accent, emptyText, addText);
 
-			SerializedProperty sizeProp = arr.Copy().FindPropertyRelative("Array.size") ?? arr;
-			element.TrackPropertyValue(sizeProp, _ => rebuild());
+			// Rebuild policy: a change to the array *size* (add / remove / undo) rebuilds the rows at once.
+			// A change to an element *value* must NOT rebuild mid-edit — that would tear down the field the
+			// user is dragging / typing in (drag-scrub dies on the first frame). Instead we debounce: once the
+			// value edits stop for ~250 ms, one rebuild refreshes the duplicate-row warnings.
+			SerializedProperty a0 = Arr();
+			int lastCount = a0 != null ? a0.arraySize : 0;
+			double lastEditAt = -1;
+			element.TrackPropertyValue(owner.Copy(), _ => lastEditAt = EditorApplication.timeSinceStartup);
+			element.schedule.Execute(() => {
+				SerializedProperty a = Arr();
+				int n = a != null ? a.arraySize : 0;
+				if (n != lastCount) { lastCount = n; lastEditAt = -1; rebuild(); return; }
+				if (lastEditAt > 0 && EditorApplication.timeSinceStartup - lastEditAt > 0.25) { lastEditAt = -1; rebuild(); }
+			}).Every(100);
 			return element;
 		}
 
 		internal static VisualElement BuildDictionaryRow(SerializedProperty prop) {
-			SerializedProperty keys = prop.FindPropertyRelative("_keys");
-			SerializedProperty values = prop.FindPropertyRelative("_values");
-			if (keys == null || values == null || !keys.isArray) return BuildNestedFoldout(prop);
+			SerializedProperty keys0 = prop.FindPropertyRelative("_keys");
+			SerializedProperty values0 = prop.FindPropertyRelative("_values");
+			if (keys0 == null || values0 == null || !keys0.isArray) return BuildNestedFoldout(prop);
 			SerializedObject so = prop.serializedObject;
+			string keysPath = keys0.propertyPath;
+			string valuesPath = values0.propertyPath;
+			SerializedProperty Keys() => so.FindProperty(keysPath);
+			SerializedProperty Values() => so.FindProperty(valuesPath);
 			string persist = (so.targetObject != null ? so.targetObject.GetType().Name : "x") + "/" + prop.propertyPath;
 
 			var (element, rebuild) = SperlichEditorWidgets.CreateCollectionList(
 				prop.displayName, persist,
-				() => keys.arraySize,
-				() => { keys.arraySize++; values.arraySize++; so.ApplyModifiedProperties(); },
-				i => { DeleteArrayElement(keys, i); DeleteArrayElement(values, i); so.ApplyModifiedProperties(); },
-				(a, b) => { keys.MoveArrayElement(a, b); values.MoveArrayElement(a, b); so.ApplyModifiedProperties(); },
-				(i, host) => {
-					var kv = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, flexGrow = 1, minWidth = 0 } };
-					VisualElement k = SperlichEditorWidgets.CompactControl(keys.GetArrayElementAtIndex(i).Copy(), Accent);
-					k.style.width = Length.Percent(42);
-					k.style.flexShrink = 0;
-					kv.Add(k);
-					kv.Add(new Label("→") { style = { fontSize = 10, color = SperlichEditorTheme.TextMuted, marginLeft = 4, marginRight = 4, flexShrink = 0 } });
-					VisualElement v = SperlichEditorWidgets.CompactControl(values.GetArrayElementAtIndex(i).Copy(), Accent);
-					v.style.flexGrow = 1;
-					v.style.minWidth = 0;
-					kv.Add(v);
-					host.Add(kv);
-					if (IsDuplicateAt(keys, i)) host.Add(DuplicateWarning("Doppelter Schlüssel — wird beim Serialisieren verworfen"));
+				() => { SerializedProperty k = Keys(); return k != null ? k.arraySize : 0; },
+				() => {
+					SerializedProperty k = Keys(), v = Values();
+					if (k == null || v == null) return;
+					k.arraySize++;
+					v.arraySize++;
+					SeedUniqueElement(k, k.arraySize - 1);
+					so.ApplyModifiedProperties();
 				},
-				Accent, emptyText: "Leeres Dictionary", addText: "+ Eintrag");
+				i => { SerializedProperty k = Keys(), v = Values(); if (k == null || v == null) return; DeleteArrayElement(k, i); DeleteArrayElement(v, i); so.ApplyModifiedProperties(); },
+				(x, y) => { SerializedProperty k = Keys(), v = Values(); if (k == null || v == null) return; k.MoveArrayElement(x, y); v.MoveArrayElement(x, y); so.ApplyModifiedProperties(); },
+				(i, host) => {
+					SerializedProperty k = Keys(), v = Values();
+					if (k == null || v == null || i < 0 || i >= k.arraySize || i >= v.arraySize) return;
+					var kv = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, flexGrow = 1, minWidth = 0 } };
+					VisualElement kCtl = SperlichEditorWidgets.CompactControl(k.GetArrayElementAtIndex(i).Copy(), Accent);
+					kCtl.style.width = Length.Percent(42);
+					kCtl.style.flexShrink = 0;
+					kv.Add(kCtl);
+					kv.Add(new Label("→") { style = { fontSize = 10, color = SperlichEditorTheme.TextMuted, marginLeft = 4, marginRight = 4, flexShrink = 0 } });
+					VisualElement vCtl = SperlichEditorWidgets.CompactControl(v.GetArrayElementAtIndex(i).Copy(), Accent);
+					vCtl.style.flexGrow = 1;
+					vCtl.style.minWidth = 0;
+					kv.Add(vCtl);
+					host.Add(kv);
+					if (IsDuplicateAt(k, i)) host.Add(DuplicateWarning("Duplicate key — dropped on serialize"));
+				},
+				Accent, emptyText: "Empty dictionary", addText: "+ Add");
 
-			SerializedProperty sizeProp = keys.Copy().FindPropertyRelative("Array.size") ?? keys;
-			element.TrackPropertyValue(sizeProp, _ => rebuild());
+			// Same debounce as BuildArrayBackedList: structural (key-count) changes rebuild now, value edits
+			// (a key/value being typed) settle for ~250 ms before one rebuild refreshes the dup-key warnings.
+			// Rebuilding mid-edit would drop the row being changed and dispose its bound field.
+			SerializedProperty k0 = Keys();
+			int lastCount = k0 != null ? k0.arraySize : 0;
+			double lastEditAt = -1;
+			element.TrackPropertyValue(prop.Copy(), _ => lastEditAt = EditorApplication.timeSinceStartup);
+			element.schedule.Execute(() => {
+				SerializedProperty k = Keys();
+				int n = k != null ? k.arraySize : 0;
+				if (n != lastCount) { lastCount = n; lastEditAt = -1; rebuild(); return; }
+				if (lastEditAt > 0 && EditorApplication.timeSinceStartup - lastEditAt > 0.25) { lastEditAt = -1; rebuild(); }
+			}).Every(100);
 			return element;
 		}
 
@@ -450,13 +802,17 @@ namespace Sperlich.EditorKit {
 		}
 
 		private static VisualElement FullWidthPropertyField(SerializedProperty prop) {
-			// No explicit BindProperty — the element returned from CreateInspectorGUI is bound by Unity, and
-			// this is how the other Sperlich editors add PropertyFields (see SperlichFieldColumn.Raw).
-			return new PropertyField(prop) { style = { marginTop = 1, marginBottom = 1 } };
+			// Explicit BindProperty: an auto-bound PropertyField loses its [SerializeReference] managed
+			// sub-tree on a rebind (Apply / Revert / reselect) and never shows the prefab-override bar for
+			// managed references. Binding it directly to the property path fixes both.
+			var pf = new PropertyField(prop) { style = { marginTop = 1, marginBottom = 1 } };
+			pf.BindProperty(prop);
+			return pf;
 		}
 
-		private static VisualElement BuildHeader(string text) {
+		private static VisualElement BuildHeader(string text, bool tightTop = false) {
 			// Full-bleed strip on BgStep, same look as the CreateChevronSection headers in the other editors.
+			// tightTop: sits flush against a preceding strip (e.g. as the first child of a [Box] body).
 			var header = new Label(text.ToUpperInvariant()) {
 				style = {
 					unityFontStyleAndWeight = FontStyle.Bold,
@@ -464,7 +820,7 @@ namespace Sperlich.EditorKit {
 					color = SperlichEditorTheme.TextSecondary,
 					backgroundColor = SperlichEditorTheme.BgStep,
 					marginLeft = -PadX, marginRight = -8,
-					marginTop = 8, marginBottom = 5,
+					marginTop = tightTop ? 0 : 8, marginBottom = 5,
 					paddingLeft = PadX, paddingRight = 8, paddingTop = 4, paddingBottom = 4,
 					borderBottomWidth = 1,
 					borderBottomColor = SperlichEditorTheme.BorderSubtle,

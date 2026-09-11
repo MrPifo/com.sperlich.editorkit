@@ -30,7 +30,7 @@ namespace Sperlich.EditorKit {
 
 			root.Add(SperlichInspectorEngine.BuildArrayBackedList(
 				property.FindPropertyRelative("_items"), property.Copy(), property.displayName,
-				warnDuplicates: true, elemType: elem, addText: "+ Wert", emptyText: "Leeres Set"));
+				warnDuplicates: true, elemType: elem, addText: "+ Add", emptyText: "Empty set"));
 			return root;
 		}
 	}

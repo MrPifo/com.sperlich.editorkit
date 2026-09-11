@@ -23,12 +23,37 @@ namespace Sperlich.EditorKit {
 		public SDictionary(IDictionary<TKey, TValue> source) : base(source) { }
 
 		public void OnBeforeSerialize() {
+			// Leave the serialized lists untouched whenever deserializing them again would reproduce exactly
+			// this dictionary. That deliberately tolerates duplicate / extra rows the inspector is mid-edit
+			// on (e.g. a key just typed onto a value that already exists) — the drawer flags those rows
+			// instead of us silently deleting them here, which would also invalidate the bound editor fields
+			// and throw. Rebuild from the live dictionary only when runtime code has mutated it directly.
+			if (ListsEncodeDict()) return;
 			_keys.Clear();
 			_values.Clear();
 			foreach (KeyValuePair<TKey, TValue> kv in this) {
 				_keys.Add(kv.Key);
 				_values.Add(kv.Value);
 			}
+		}
+
+		/// <summary>True when running <see cref="OnAfterDeserialize"/> on the current lists would rebuild an
+		/// identical dictionary (last write wins, null keys skipped) — i.e. the lists still faithfully encode
+		/// this dictionary even if they carry duplicate or surplus rows.</summary>
+		private bool ListsEncodeDict() {
+			int n = Math.Min(_keys.Count, _values.Count);
+			var reconstructed = new Dictionary<TKey, TValue>(n);
+			for (int i = 0; i < n; i++) {
+				TKey k = _keys[i];
+				if (k == null) continue;
+				reconstructed[k] = _values[i];
+			}
+			if (reconstructed.Count != Count) return false;
+			foreach (KeyValuePair<TKey, TValue> kv in this) {
+				if (!reconstructed.TryGetValue(kv.Key, out TValue v)) return false;
+				if (!EqualityComparer<TValue>.Default.Equals(v, kv.Value)) return false;
+			}
+			return true;
 		}
 
 		public void OnAfterDeserialize() {

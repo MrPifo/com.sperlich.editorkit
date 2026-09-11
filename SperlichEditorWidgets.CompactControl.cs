@@ -28,6 +28,15 @@ namespace Sperlich.EditorKit {
 				return pfd;
 			}
 
+			// [SerializeReference] element: only Unity's PropertyField renders the polymorphic type picker
+			// and its sub-fields. Bind it explicitly so it survives a rebind.
+			if (prop.propertyType == SerializedPropertyType.ManagedReference) {
+				var mpf = new PropertyField(prop);
+				mpf.BindProperty(prop);
+				mpf.style.flexGrow = 1;
+				return mpf;
+			}
+
 			switch (prop.propertyType) {
 				case SerializedPropertyType.Boolean:
 					return new SperlichToggleField(prop) { style = { flexGrow = 0 } };

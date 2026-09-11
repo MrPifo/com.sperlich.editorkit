@@ -19,6 +19,10 @@ namespace Sperlich.EditorKit {
 	/// </summary>
 	public sealed class SperlichFieldColumn {
 
+		/// <summary>Name of the control cell inside a <see cref="Row"/> — the element that holds the actual
+		/// field control. Row post-processors resolve it by this name.</summary>
+		public const string ControlCellName = "sperlich-field-control";
+
 		/// <summary>Feste Breite der Label-Spalte in Pixel. Alle Zeilen dieser Column nutzen denselben Wert.</summary>
 		public float LabelWidth { get; }
 
@@ -54,7 +58,10 @@ namespace Sperlich.EditorKit {
 				}
 			};
 
-			var controlWrap = new VisualElement { style = { flexGrow = 1, flexDirection = FlexDirection.Row, alignItems = Align.Center } };
+			// Named so row post-processors ([InlineButton] / [SuffixLabel] / [Unit] / [TintColor]) can target the
+			// control cell directly instead of guessing row[1] — the prefab-override bar gets inserted as an
+			// extra child and shifts those indices.
+			var controlWrap = new VisualElement { name = ControlCellName, style = { flexGrow = 1, flexDirection = FlexDirection.Row, alignItems = Align.Center } };
 			control.style.flexGrow = 1;
 			controlWrap.Add(control);
 

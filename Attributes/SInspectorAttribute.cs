@@ -19,5 +19,12 @@ namespace Sperlich.EditorKit {
 	/// </summary>
 	[Conditional("UNITY_EDITOR")]
 	[AttributeUsage(AttributeTargets.Class, Inherited = true, AllowMultiple = false)]
-	public sealed class SInspectorAttribute : Attribute { }
+	public sealed class SInspectorAttribute : Attribute {
+
+		/// <summary>When <c>false</c> (default, like Odin) the "Script" reference row is hidden. A global
+		/// editor toggle (Tools ▸ Sperlich ▸ SInspector) can force it back on for every type.</summary>
+		public bool ShowScript { get; }
+
+		public SInspectorAttribute(bool showScript = false) => ShowScript = showScript;
+	}
 }

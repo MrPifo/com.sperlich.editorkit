@@ -324,6 +324,9 @@ namespace Sperlich.EditorKit {
 				track.Add(segment);
 			}
 
+			// Re-read on any external change (Revert / Undo / OnValueChanged / multi-select) — without this the
+			// segments only restyled on click or hover.
+			track.TrackPropertyValue(enumProp, _ => Refresh());
 			Refresh();
 			return track;
 		}
@@ -978,10 +981,17 @@ namespace Sperlich.EditorKit {
 		/// <param name="enumType">Optional: der echte Enum-Typ. Ist er gesetzt, bekommt jede Zeile ein
 		/// abgerundetes Kästchen mit dem dahinterliegenden Konstantenwert (z.B. <c>Priority.High = 10</c>).</param>
 		public static VisualElement CreateEnumDropdown(SerializedProperty enumProp, Color? accent = null, Action<int> onChanged = null, Type enumType = null) {
+			// enumNames / enumDisplayNames throw ("type is not a enum value") if the SerializedProperty has
+			// gone stale — e.g. an SDictionary key element after its backing list was rewritten by the
+			// serialization callback. Fail soft instead of crashing the whole inspector.
+			string[] SafeNames() { try { return enumProp.enumNames; } catch { return null; } }
+			string[] SafeDisplay() { try { return enumProp.enumDisplayNames; } catch { return null; } }
+			int SafeIndex() { try { return enumProp.enumValueIndex; } catch { return -1; } }
+
 			string LabelFor(int index) {
-				var display = enumProp.enumDisplayNames;
+				var display = SafeDisplay();
 				if (display != null && index >= 0 && index < display.Length && string.IsNullOrEmpty(display[index]) == false) return display[index];
-				var raw = enumProp.enumNames;
+				var raw = SafeNames();
 				if (raw != null && index >= 0 && index < raw.Length) return ObjectNames.NicifyVariableName(raw[index]);
 				return "—";
 			}
@@ -992,26 +1002,28 @@ namespace Sperlich.EditorKit {
 				foreach (string n in Enum.GetNames(enumType)) valueByName[n] = Convert.ToInt64(Enum.Parse(enumType, n));
 			}
 			string BadgeFor(int index) {
-				string[] raw = enumProp.enumNames;
+				string[] raw = SafeNames();
 				if (valueByName == null || raw == null || index < 0 || index >= raw.Length) return null;
 				return valueByName.TryGetValue(raw[index], out long v) ? v.ToString() : null;
 			}
 
 			var dd = BuildDropdown(
-				() => enumProp.enumNames?.Length ?? 0,
+				() => SafeNames()?.Length ?? 0,
 				LabelFor,
-				() => enumProp.enumValueIndex,
+				SafeIndex,
 				i => {
-					if (enumProp.enumValueIndex == i) return;
-					enumProp.enumValueIndex = i;
-					enumProp.serializedObject.ApplyModifiedProperties();
-					onChanged?.Invoke(i);
+					try {
+						if (enumProp.enumValueIndex == i) return;
+						enumProp.enumValueIndex = i;
+						enumProp.serializedObject.ApplyModifiedProperties();
+						onChanged?.Invoke(i);
+					} catch { /* stale property */ }
 				},
 				accent,
 				valueByName != null ? (Func<int, string>)BadgeFor : null);
 			dd.TrackPropertyValue(enumProp, _ => {
 				Label valLbl = dd.Q<Label>();
-				if (valLbl != null) valLbl.text = LabelFor(enumProp.enumValueIndex);
+				if (valLbl != null) valLbl.text = LabelFor(SafeIndex());
 			});
 			return dd;
 		}
