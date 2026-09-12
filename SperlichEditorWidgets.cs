@@ -329,6 +329,9 @@ namespace Sperlich.EditorKit {
 			VisualElement CreateSegment(int index, float marginRight) {
 				var segment = new VisualElement { pickingMode = PickingMode.Position };
 				segment.style.flexGrow = 1;
+				segment.style.flexShrink = 1;
+				segment.style.flexBasis = 0;
+				segment.style.minWidth = 0;
 				segment.style.borderTopWidth = 1;
 				segment.style.borderBottomWidth = 1;
 				segment.style.borderLeftWidth = 1;
@@ -343,6 +346,9 @@ namespace Sperlich.EditorKit {
 				var label = new Label(labels[index]) { pickingMode = PickingMode.Ignore };
 				label.style.fontSize = 10;
 				label.style.unityTextAlign = TextAnchor.MiddleCenter;
+				label.style.overflow = Overflow.Hidden;
+				label.style.textOverflow = TextOverflow.Ellipsis;
+				label.style.whiteSpace = WhiteSpace.NoWrap;
 				ApplyColorTransition(label, 100, "color");
 				segment.Add(label);
 
