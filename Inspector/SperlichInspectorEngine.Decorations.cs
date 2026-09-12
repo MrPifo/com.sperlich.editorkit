@@ -25,13 +25,20 @@ namespace Sperlich.EditorKit {
 				Label rowLabel = row.Q<Label>();
 				if (rowLabel != null && rowLabel.parent != null) {
 					int insertAt = rowLabel.parent.IndexOf(rowLabel) + 1;
-					foreach ((string label, TagColor color) in meta.Tags) {
+					foreach ((string label, Color color) in meta.Tags) {
 						rowLabel.parent.Insert(insertAt++, SperlichEditorWidgets.CreateTagPill(label, color));
 					}
 				}
 			}
 
-			if (!string.IsNullOrEmpty(meta.TintColorHtml) && ColorUtility.TryParseHtmlString(meta.TintColorHtml, out Color tint)) {
+			Color? resolvedTint = null;
+			if (!string.IsNullOrEmpty(meta.TintColorHtml) && ColorUtility.TryParseHtmlString(meta.TintColorHtml, out Color htmlTint)) {
+				resolvedTint = htmlTint;
+			} else if (meta.TintColorEnum != TintColor.None) {
+				resolvedTint = SperlichEditorWidgets.TintColorToColor(meta.TintColorEnum);
+			}
+			if (resolvedTint.HasValue) {
+				Color tint = resolvedTint.Value;
 				Label lbl = row.Q<Label>();
 				if (lbl != null) lbl.style.color = tint;
 				if (meta.TintBackground) {
@@ -301,13 +308,14 @@ namespace Sperlich.EditorKit {
 
 		private static VisualElement BuildEnumToggleButtons(SerializedProperty prop, SperlichInspectorPlan.MemberMeta meta) {
 			Type enumType = meta?.Field?.FieldType;
+			Color accent = ResolveAccent(meta);
 			if (enumType != null && enumType.IsEnum && enumType.GetCustomAttribute<FlagsAttribute>() != null) {
 				string[] caps = FlagCaptions(enumType);
-				if (caps.Length > 0) return SperlichEditorWidgets.CreateFlagButtons(prop, caps, null, Accent);
-				return SperlichEditorWidgets.CreateFlagsDropdown(prop, Accent);
+				if (caps.Length > 0) return SperlichEditorWidgets.CreateFlagButtons(prop, caps, null, accent);
+				return SperlichEditorWidgets.CreateFlagsDropdown(prop, accent);
 			}
 			string[] labels = prop.enumDisplayNames ?? Array.Empty<string>();
-			return SperlichEditorWidgets.CreateSegmentedControl(prop, labels, Accent);
+			return SperlichEditorWidgets.CreateSegmentedControl(prop, labels, accent);
 		}
 
 		/// <summary>For a <c>[Flags]</c> enum: an array where index <c>i</c> is the display name of the member
@@ -333,8 +341,7 @@ namespace Sperlich.EditorKit {
 		}
 
 		private static VisualElement BuildProgressBarControl(SerializedProperty prop, SperlichInspectorPlan.MemberMeta meta) {
-			Color fill = Accent;
-			if (!string.IsNullOrEmpty(meta.PbColor) && ColorUtility.TryParseHtmlString(meta.PbColor, out Color c)) fill = c;
+			Color fill = SperlichEditorWidgets.ResolveColor(meta.PbColor, meta.PbTint) ?? Accent;
 
 			float Read() => prop.propertyType == SerializedPropertyType.Integer ? prop.intValue : prop.floatValue;
 			var (rootEl, setValue, setRange) = SperlichEditorWidgets.CreateProgressBar(

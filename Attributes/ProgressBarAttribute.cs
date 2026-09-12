@@ -16,8 +16,13 @@ namespace Sperlich.EditorKit {
 		public float Min { get; }
 		public float Max { get; }
 
-		/// <summary>Fill colour as HTML string. <c>null</c> = the theme accent.</summary>
+		/// <summary>Fill colour as HTML string. <c>null</c> = fall back to <see cref="Tint"/>, then the theme
+		/// accent.</summary>
 		public string Color { get; }
+
+		/// <summary>Fill colour from the <see cref="Sperlich.EditorKit.TintColor"/> palette. Only used when
+		/// <see cref="Color"/> is <c>null</c>.</summary>
+		public TintColor Tint { get; }
 
 		/// <summary>Bar height in pixels.</summary>
 		public int Height { get; }
@@ -40,7 +45,7 @@ namespace Sperlich.EditorKit {
 
 		public ProgressBarAttribute(float min, float max, string color = null, int height = 18,
 			string minMember = null, string maxMember = null, bool segmented = false, bool showValue = true,
-			bool percent = false) {
+			bool percent = false, TintColor tint = TintColor.None) {
 			Min = min;
 			Max = max;
 			Color = color;
@@ -50,6 +55,7 @@ namespace Sperlich.EditorKit {
 			Segmented = segmented;
 			ShowValue = showValue;
 			Percent = percent;
+			Tint = tint;
 		}
 	}
 }

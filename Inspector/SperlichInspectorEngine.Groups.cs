@@ -38,13 +38,21 @@ namespace Sperlich.EditorKit {
 		private static VisualElement BuildBoxContainer(VisualElement parent, SerializedObject so, BoxAttribute box, string firstFieldName) {
 			string title = box.Label;
 			VisualElement body;
+			Color? sidebarColor = null;
+			if (!string.IsNullOrEmpty(box.SidebarColor) && ColorUtility.TryParseHtmlString(box.SidebarColor, out Color sc)) {
+				sidebarColor = sc;
+			} else if (box.SidebarTint != TintColor.None) {
+				sidebarColor = SperlichEditorWidgets.TintColorToColor(box.SidebarTint);
+			} else if (box.SidebarR >= 0f) {
+				sidebarColor = new Color(box.SidebarR, box.SidebarG, box.SidebarB, box.SidebarA);
+			}
 
 			if (box.Collapsable) {
 				string typeName = so.targetObject != null ? so.targetObject.GetType().Name : "x";
 				string persistKey = typeName + "/box/" + firstFieldName;
 				var (header, chevronBody, _) = SperlichEditorWidgets.CreateChevronSection(
 					string.IsNullOrEmpty(title) ? "Box" : title,
-					box.Expanded, SperlichEditorTheme.BgStep, SperlichEditorTheme.BgStepBody, persistKey);
+					box.Expanded, SperlichEditorTheme.BgStep, SperlichEditorTheme.BgStepBody, persistKey, sidebarColor);
 
 				var shell = SperlichEditorWidgets.CreateBox(4, SperlichEditorTheme.BorderSubtle);
 				shell.style.marginTop = 3;
@@ -65,15 +73,22 @@ namespace Sperlich.EditorKit {
 
 				if (!string.IsNullOrEmpty(title)) {
 					// Full-bleed BgStep header strip, same colour split as the chevron / [Header] strips.
-					boxEl.Add(new Label(title.ToUpperInvariant()) {
+					var titleRow = new VisualElement {
+						style = {
+							flexDirection = FlexDirection.Row, alignItems = Align.Stretch,
+							backgroundColor = SperlichEditorTheme.BgStep,
+							borderBottomWidth = 1, borderBottomColor = SperlichEditorTheme.BorderSubtle,
+						}
+					};
+					if (sidebarColor.HasValue) titleRow.Add(SperlichEditorWidgets.CreateColorSidebar(sidebarColor.Value));
+					titleRow.Add(new Label(title.ToUpperInvariant()) {
 						style = {
 							unityFontStyleAndWeight = FontStyle.Bold, fontSize = 11,
 							color = SperlichEditorTheme.TextSecondary,
-							backgroundColor = SperlichEditorTheme.BgStep,
 							paddingLeft = 8, paddingRight = 8, paddingTop = 4, paddingBottom = 4,
-							borderBottomWidth = 1, borderBottomColor = SperlichEditorTheme.BorderSubtle,
 						}
 					});
+					boxEl.Add(titleRow);
 					var contentBody = new VisualElement {
 						style = { paddingLeft = 6, paddingRight = 6, paddingTop = 0, paddingBottom = 4 }
 					};
@@ -85,7 +100,11 @@ namespace Sperlich.EditorKit {
 					boxEl.style.paddingRight = 6;
 					boxEl.style.paddingTop = 3;
 					boxEl.style.paddingBottom = 4;
-					parent.Add(boxEl);
+					if (sidebarColor.HasValue) {
+						parent.Add(SperlichEditorWidgets.CreateSidebarGroup(sidebarColor.Value, boxEl));
+					} else {
+						parent.Add(boxEl);
+					}
 					body = boxEl;
 				}
 			}

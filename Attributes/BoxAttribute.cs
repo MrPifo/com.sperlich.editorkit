@@ -29,11 +29,39 @@ namespace Sperlich.EditorKit {
 		/// <summary>Disables every control inside the box (display only, values stay editable via code).</summary>
 		public bool ReadOnly { get; }
 
-		public BoxAttribute(string label = null, bool collapsable = false, bool expanded = true, bool readOnly = false) {
+		/// <summary>Optional accent bar drawn on the left edge of the box's header (collapsable) or the whole
+		/// box (non-collapsable), as an HTML colour string (e.g. <c>"#4ecdc4"</c>). <c>null</c> = fall back to
+		/// <see cref="SidebarTint"/>, then <see cref="SidebarR"/>.</summary>
+		public string SidebarColor { get; }
+
+		/// <summary>Sidebar colour from the <see cref="Sperlich.EditorKit.TintColor"/> palette — the easiest way
+		/// to pick a sidebar colour without hunting for a hex code. Only used when <see cref="SidebarColor"/> is
+		/// <c>null</c>.</summary>
+		public TintColor SidebarTint { get; }
+
+		/// <summary>Sidebar colour as raw RGBA channels (0-1) instead of a hex string or palette entry —
+		/// attributes can't take a <c>UnityEngine.Color</c> directly since it isn't a constant-expressible type.
+		/// Only used when <see cref="SidebarColor"/> is <c>null</c>, <see cref="SidebarTint"/> is
+		/// <see cref="Sperlich.EditorKit.TintColor.None"/>, and <see cref="SidebarR"/> is not negative (the
+		/// sentinel for "unset").</summary>
+		public float SidebarR { get; }
+		public float SidebarG { get; }
+		public float SidebarB { get; }
+		public float SidebarA { get; }
+
+		public BoxAttribute(string label = null, bool collapsable = false, bool expanded = true, bool readOnly = false,
+			string sidebarColor = null, TintColor sidebarTint = TintColor.None,
+			float sidebarR = -1f, float sidebarG = 0f, float sidebarB = 0f, float sidebarA = 1f) {
 			Label = label;
 			Collapsable = collapsable;
 			Expanded = expanded;
 			ReadOnly = readOnly;
+			SidebarColor = sidebarColor;
+			SidebarTint = sidebarTint;
+			SidebarR = sidebarR;
+			SidebarG = sidebarG;
+			SidebarB = sidebarB;
+			SidebarA = sidebarA;
 		}
 	}
 }

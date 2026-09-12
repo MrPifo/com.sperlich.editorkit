@@ -15,16 +15,22 @@ namespace Sperlich.EditorKit {
 		public string Label { get; }
 
 		/// <summary>Line colour as <c>"red"</c> / <c>"#RRGGBB"</c> / <c>"#RRGGBBAA"</c>
-		/// (<c>ColorUtility.TryParseHtmlString</c>). <c>null</c> = the theme's strong border colour.</summary>
+		/// (<c>ColorUtility.TryParseHtmlString</c>). <c>null</c> = fall back to <see cref="Tint"/>, then the
+		/// theme's strong border colour.</summary>
 		public string Color { get; }
+
+		/// <summary>Line colour from the <see cref="Sperlich.EditorKit.TintColor"/> palette. Only used when
+		/// <see cref="Color"/> is <c>null</c>.</summary>
+		public TintColor Tint { get; }
 
 		/// <summary>Solid / dashed / dotted.</summary>
 		public LineStyle Style { get; }
 
-		public HLineAttribute(string label = null, string color = null, LineStyle style = LineStyle.Solid) {
+		public HLineAttribute(string label = null, string color = null, LineStyle style = LineStyle.Solid, TintColor tint = TintColor.None) {
 			Label = label;
 			Color = color;
 			Style = style;
+			Tint = tint;
 		}
 	}
 }

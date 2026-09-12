@@ -28,6 +28,10 @@ namespace Sperlich.EditorKit {
 		public const string RootClass = "sperlich-inspector";
 		private static readonly Color Accent = SperlichEditorTheme.ButtonAccent;
 
+		/// <summary>Resolves <c>[AccentColor]</c> for a field, falling back to the theme <see cref="Accent"/>.</summary>
+		private static Color ResolveAccent(SperlichInspectorPlan.MemberMeta meta) =>
+			SperlichEditorWidgets.ResolveColor(meta?.AccentColorHex, meta?.AccentColorTint ?? TintColor.None) ?? Accent;
+
 		private static StyleSheet cachedSheet;
 
 		/// <summary>Horizontal inset of the field rows; section-header strips cancel it to bleed full-width.</summary>
@@ -172,9 +176,8 @@ namespace Sperlich.EditorKit {
 			if (meta == null) return;
 			if (!tightHeader && meta.SpaceBefore > 0f) container.Add(new VisualElement { style = { height = meta.SpaceBefore, flexShrink = 0 } });
 			if (meta.HLines != null) {
-				foreach ((string label, string colorHtml, LineStyle style) in meta.HLines) {
-					Color c = SperlichEditorTheme.BorderStrong;
-					if (!string.IsNullOrEmpty(colorHtml)) ColorUtility.TryParseHtmlString(colorHtml, out c);
+				foreach ((string label, string colorHtml, TintColor tint, LineStyle style) in meta.HLines) {
+					Color c = SperlichEditorWidgets.ResolveColor(colorHtml, tint) ?? SperlichEditorTheme.BorderStrong;
 					container.Add(SperlichEditorWidgets.CreateSeparatorLine(label, c, style));
 				}
 			}
@@ -296,13 +299,13 @@ namespace Sperlich.EditorKit {
 
 			// [Percent] -> editable 0-100% field mapped onto the field's own [min,max].
 			if (meta != null && meta.HasPercent && prop.propertyType == SerializedPropertyType.Float) {
-				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreatePercentField(prop, meta.PercentMin, meta.PercentMax, Accent)), prop);
+				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreatePercentField(prop, meta.PercentMin, meta.PercentMax, ResolveAccent(meta))), prop);
 			}
 
 			// [Knob] -> rotary dial (custom range, or a KnobRange angle preset).
 			if (meta != null && meta.HasKnob
 			    && (prop.propertyType == SerializedPropertyType.Integer || prop.propertyType == SerializedPropertyType.Float)) {
-				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateKnobField(prop, meta.KnobMin, meta.KnobMax, meta.KnobDiameter, Accent)), prop);
+				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateKnobField(prop, meta.KnobMin, meta.KnobMax, meta.KnobDiameter, ResolveAccent(meta))), prop);
 			}
 
 			// [Stepper] -> [-][value][+].
@@ -336,15 +339,15 @@ namespace Sperlich.EditorKit {
 			if (prop.isArray && meta != null && meta.IsSerializeReference) {
 				return OverrideRow(BuildArrayBackedList(prop, prop, prop.displayName, warnDuplicates: false,
 					elemType: declaredType != null ? SperlichInspectorPlan.ElementType(declaredType) : null,
-					polymorphic: true), prop);
+					polymorphic: true, accent: ResolveAccent(meta)), prop);
 			}
 
 			// SDictionary<,> / SHashSet<> -> Sperlich key→value / value list (before the generic-foldout branch,
 			// which would otherwise expand the two backing _keys/_values lists raw).
 			if (declaredType != null && declaredType.IsGenericType) {
 				Type gd = declaredType.GetGenericTypeDefinition();
-				if (gd == typeof(SDictionary<,>)) return OverrideRow(BuildDictionaryRow(prop), prop);
-				if (gd == typeof(SHashSet<>)) return OverrideRow(BuildArrayBackedList(prop.FindPropertyRelative("_items"), prop, prop.displayName, warnDuplicates: true, elemType: ElemArg(declaredType, 0), addText: "+ Add", emptyText: "Empty set"), prop);
+				if (gd == typeof(SDictionary<,>)) return OverrideRow(BuildDictionaryRow(prop, ResolveAccent(meta)), prop);
+				if (gd == typeof(SHashSet<>)) return OverrideRow(BuildArrayBackedList(prop.FindPropertyRelative("_items"), prop, prop.displayName, warnDuplicates: true, elemType: ElemArg(declaredType, 0), addText: "+ Add", emptyText: "Empty set", accent: ResolveAccent(meta)), prop);
 			}
 
 			// Arrays / Lists (element type without its own drawer) -> Sperlich compact-row collection editor.
@@ -352,7 +355,8 @@ namespace Sperlich.EditorKit {
 			bool elementHasDrawer = meta != null && meta.ElementTypeHasDrawer;
 			if (isCollection && !elementHasDrawer) {
 				return OverrideRow(BuildArrayBackedList(prop, prop, prop.displayName, warnDuplicates: false,
-					elemType: declaredType != null ? SperlichInspectorPlan.ElementType(declaredType) : null), prop);
+					elemType: declaredType != null ? SperlichInspectorPlan.ElementType(declaredType) : null,
+					accent: ResolveAccent(meta)), prop);
 			}
 
 			// Collections whose element type has its own drawer (List<SEvent>, …) -> native list drawer.
@@ -377,7 +381,8 @@ namespace Sperlich.EditorKit {
 
 			// Bool -> pill toggle (mixed-value aware). Not a bound BaseField, so it needs the manual bar.
 			if (prop.propertyType == SerializedPropertyType.Boolean) {
-				var toggle = new SperlichToggleField(prop);
+				Color? boolAccent = SperlichEditorWidgets.ResolveColor(meta?.AccentColorHex, meta?.AccentColorTint ?? TintColor.None);
+				var toggle = new SperlichToggleField(prop, boolAccent);
 				VisualElement boolRow = col.Row(prop.displayName, toggle);
 				toggle.style.flexGrow = 0; // col.Row stretches controls; keep the toggle sized to its content
 				return OverrideRow(boolRow, prop);
@@ -386,14 +391,14 @@ namespace Sperlich.EditorKit {
 			// Enum -> flat dropdown / flags multi-select. Also not bound BaseFields -> manual bar.
 			if (prop.propertyType == SerializedPropertyType.Enum) {
 				VisualElement dd = IsFlags(meta)
-					? SperlichEditorWidgets.CreateFlagsDropdown(prop, Accent)
-					: SperlichEditorWidgets.CreateEnumDropdown(prop, Accent, null, meta?.Field?.FieldType);
+					? SperlichEditorWidgets.CreateFlagsDropdown(prop, ResolveAccent(meta))
+					: SperlichEditorWidgets.CreateEnumDropdown(prop, ResolveAccent(meta), null, meta?.Field?.FieldType);
 				return OverrideRow(col.Row(prop.displayName, dd), prop);
 			}
 
 			// LayerMask -> Sperlich multi-select dropdown (Unity's own field is the odd one out otherwise).
 			if (prop.propertyType == SerializedPropertyType.LayerMask) {
-				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateLayerMaskDropdown(prop, Accent)), prop);
+				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateLayerMaskDropdown(prop, ResolveAccent(meta))), prop);
 			}
 
 			// Vector2 / Vector2Int with [SMinMax] -> dual-handle "from–to" range slider.
@@ -446,7 +451,7 @@ namespace Sperlich.EditorKit {
 			if (prop.propertyType == SerializedPropertyType.Integer || prop.propertyType == SerializedPropertyType.Float) {
 				if (SperlichEditorWidgets.TryGetRange(prop, out float rMin, out float rMax)) {
 					bool intMode = prop.propertyType == SerializedPropertyType.Integer;
-					VisualElement slider = SperlichEditorWidgets.CreateRangeSlider(prop, rMin, rMax, intMode, Accent);
+					VisualElement slider = SperlichEditorWidgets.CreateRangeSlider(prop, rMin, rMax, intMode, ResolveAccent(meta));
 					return OverrideRow(col.Row(prop.displayName, slider), prop);
 				}
 				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateDragNumberField(prop)), prop);
@@ -656,7 +661,9 @@ namespace Sperlich.EditorKit {
 		}
 
 		internal static VisualElement BuildArrayBackedList(SerializedProperty arr, SerializedProperty owner, string title,
-			bool warnDuplicates, Type elemType, string addText = "+ Add", string emptyText = "No entries", bool polymorphic = false) {
+			bool warnDuplicates, Type elemType, string addText = "+ Add", string emptyText = "No entries", bool polymorphic = false,
+			Color? accent = null) {
+			Color headerAccent = accent ?? Accent;
 
 			if (arr == null || !arr.isArray) return FullWidthPropertyField(owner);
 			SerializedObject so = arr.serializedObject;
@@ -688,13 +695,13 @@ namespace Sperlich.EditorKit {
 					SerializedProperty a = Arr();
 					if (a == null || i < 0 || i >= a.arraySize) return;
 					SerializedProperty elem = a.GetArrayElementAtIndex(i).Copy();
-					VisualElement ctl = SperlichEditorWidgets.CompactControl(elem, Accent, _ => elemType);
+					VisualElement ctl = SperlichEditorWidgets.CompactControl(elem, headerAccent, _ => elemType);
 					ctl.style.flexGrow = 1;
 					host.Add(ctl);
 					SperlichPrefabOverride.Attach(host, null, elem);
 					if (warnDuplicates && IsDuplicateAt(a, i)) host.Add(DuplicateWarning("Duplicate value — dropped on serialize"));
 				},
-				Accent, emptyText, addText);
+				headerAccent, emptyText, addText);
 
 			// Rebuild policy: a change to the array *size* (add / remove / undo) rebuilds the rows at once.
 			// A change to an element *value* must NOT rebuild mid-edit — that would tear down the field the
@@ -713,7 +720,8 @@ namespace Sperlich.EditorKit {
 			return element;
 		}
 
-		internal static VisualElement BuildDictionaryRow(SerializedProperty prop) {
+		internal static VisualElement BuildDictionaryRow(SerializedProperty prop, Color? accent = null) {
+			Color headerAccent = accent ?? Accent;
 			SerializedProperty keys0 = prop.FindPropertyRelative("_keys");
 			SerializedProperty values0 = prop.FindPropertyRelative("_values");
 			if (keys0 == null || values0 == null || !keys0.isArray) return BuildNestedFoldout(prop);
@@ -741,19 +749,19 @@ namespace Sperlich.EditorKit {
 					SerializedProperty k = Keys(), v = Values();
 					if (k == null || v == null || i < 0 || i >= k.arraySize || i >= v.arraySize) return;
 					var kv = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, flexGrow = 1, minWidth = 0 } };
-					VisualElement kCtl = SperlichEditorWidgets.CompactControl(k.GetArrayElementAtIndex(i).Copy(), Accent);
+					VisualElement kCtl = SperlichEditorWidgets.CompactControl(k.GetArrayElementAtIndex(i).Copy(), headerAccent);
 					kCtl.style.width = Length.Percent(42);
 					kCtl.style.flexShrink = 0;
 					kv.Add(kCtl);
 					kv.Add(new Label("→") { style = { fontSize = 10, color = SperlichEditorTheme.TextMuted, marginLeft = 4, marginRight = 4, flexShrink = 0 } });
-					VisualElement vCtl = SperlichEditorWidgets.CompactControl(v.GetArrayElementAtIndex(i).Copy(), Accent);
+					VisualElement vCtl = SperlichEditorWidgets.CompactControl(v.GetArrayElementAtIndex(i).Copy(), headerAccent);
 					vCtl.style.flexGrow = 1;
 					vCtl.style.minWidth = 0;
 					kv.Add(vCtl);
 					host.Add(kv);
 					if (IsDuplicateAt(k, i)) host.Add(DuplicateWarning("Duplicate key — dropped on serialize"));
 				},
-				Accent, emptyText: "Empty dictionary", addText: "+ Add");
+				headerAccent, emptyText: "Empty dictionary", addText: "+ Add");
 
 			// Same debounce as BuildArrayBackedList: structural (key-count) changes rebuild now, value edits
 			// (a key/value being typed) settle for ~250 ms before one rebuild refreshes the dup-key warnings.

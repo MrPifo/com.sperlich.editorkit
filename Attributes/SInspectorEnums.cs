@@ -78,6 +78,41 @@ namespace Sperlich.EditorKit {
 		Purple,
 	}
 
+	/// <summary>General-purpose named colour palette for anywhere an attribute needs a colour — attribute
+	/// constructors can only take constant-expressible types (no <c>UnityEngine.Color</c>), so this enum is the
+	/// palette and <see cref="SperlichEditorWidgets.TintColorToColor"/> maps it to an actual theme-friendly
+	/// <c>Color</c>. <see cref="None"/> is the "unset" sentinel, not a real colour — always check for it before
+	/// resolving. Used by <see cref="BoxAttribute"/>'s sidebar and <see cref="TintColorAttribute"/>.</summary>
+	public enum TintColor {
+		/// <summary>Sentinel meaning "no colour set" — never resolved to an actual colour.</summary>
+		None,
+		White,
+		Black,
+		Gray,
+		LightGray,
+		DarkGray,
+		Brown,
+		Red,
+		DarkRed,
+		Orange,
+		Amber,
+		Yellow,
+		Lime,
+		Green,
+		DarkGreen,
+		Teal,
+		Cyan,
+		SkyBlue,
+		Blue,
+		DarkBlue,
+		Indigo,
+		Purple,
+		Violet,
+		Magenta,
+		Pink,
+		Maroon,
+	}
+
 	/// <summary>Severity / color for <see cref="InfoBoxAttribute"/>.</summary>
 	public enum InfoBoxType {
 		Info,

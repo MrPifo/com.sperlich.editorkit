@@ -203,10 +203,31 @@ namespace Sperlich.EditorKit {
 			};
 		}
 
+		/// <summary>Dünner farbiger Akzent-Balken für den linken Rand eines Headers, einer Gruppe oder Karte —
+		/// bindet eine Section visuell an eine semantische Farbe (z.B. einen Typ/eine Kategorie), ohne den
+		/// ganzen Hintergrund einzufärben. Flach, ohne Rundung (bewusst schlicht, damit er an Header-Zeilen
+		/// bündig sitzt).</summary>
+		public static VisualElement CreateColorSidebar(Color color, float width = 4f) {
+			return new VisualElement { style = { width = width, flexShrink = 0, alignSelf = Align.Stretch, backgroundColor = color } };
+		}
+
+		/// <summary>Verpackt beliebigen Inhalt (Header, Box, Feldgruppe, ganze Karte, …) mit einem farbigen
+		/// <see cref="CreateColorSidebar"/>-Balken links davon. Generischer als der <c>sidebarColor</c>-Parameter
+		/// von <see cref="CreateChevronSection"/>, weil er nicht an das Chevron-Header/Body-Muster gebunden ist.</summary>
+		public static VisualElement CreateSidebarGroup(Color color, VisualElement content, float width = 4f) {
+			var row = new VisualElement { style = { flexDirection = UnityEngine.UIElements.FlexDirection.Row } };
+			row.Add(CreateColorSidebar(color, width));
+			content.style.flexGrow = 1;
+			row.Add(content);
+			return row;
+		}
+
 		/// <summary>Kollabierbare Sektion mit handgezeichnetem ▼/▶-Pfeil statt nativem Foldout (Sperlich-Editor-Konvention, siehe AnimSequencerEditor).</summary>
 		/// <param name="persistKey">Wenn gesetzt: der Auf-/Zu-Zustand wird unter diesem Schlüssel (+ Titel) in
 		/// <see cref="EditorPrefs"/> gemerkt, sodass er einen Inspector-Rebuild (Undo/Redo, Domain-Reload) übersteht.</param>
-		public static (VisualElement header, VisualElement body, Label arrow) CreateChevronSection(string title, bool expanded, Color headerBg, Color? bodyBg = null, string persistKey = null) {
+		/// <param name="sidebarColor">Optional: ein <see cref="CreateColorSidebar"/>-Balken am linken Rand des Headers
+		/// (z.B. um eine Kategorie/einen Typ farblich zu kennzeichnen, wie im AnimSequencer-Inspector).</param>
+		public static (VisualElement header, VisualElement body, Label arrow) CreateChevronSection(string title, bool expanded, Color headerBg, Color? bodyBg = null, string persistKey = null, Color? sidebarColor = null) {
 			string prefKey = persistKey != null ? "Sperlich.Section/" + persistKey + "/" + title : null;
 			if (prefKey != null) expanded = EditorPrefs.GetBool(prefKey, expanded);
 
@@ -222,6 +243,13 @@ namespace Sperlich.EditorKit {
 			Color headerHoverBg = Color.Lerp(headerBg, Color.white, 0.08f);
 			header.RegisterCallback<MouseEnterEvent>(_ => header.style.backgroundColor = headerHoverBg);
 			header.RegisterCallback<MouseLeaveEvent>(_ => header.style.backgroundColor = headerBg);
+
+			if (sidebarColor.HasValue) {
+				var sidebar = CreateColorSidebar(sidebarColor.Value);
+				sidebar.style.marginLeft = -6; // cancels header's paddingLeft so the bar sits flush with the edge
+				sidebar.style.marginRight = 6;
+				header.Add(sidebar);
+			}
 
 			var arrow = new Label(expanded ? "▼" : "▶");
 			arrow.style.fontSize = 10;
@@ -265,7 +293,16 @@ namespace Sperlich.EditorKit {
 		}
 
 		/// <summary>Anklickbare Segmented-Control für ein Enum-SerializedProperty — flache umrandete Segmente statt Dropdown, aktives Segment mit Akzent-Rahmen (Sperlich-Editor-Konvention).</summary>
-		public static VisualElement CreateSegmentedControl(SerializedProperty enumProp, string[] labels, Color accent, Action onChanged = null) {
+		public static VisualElement CreateSegmentedControl(SerializedProperty enumProp, string[] labels, Color accent, Action onChanged = null) =>
+			CreateSegmentedControl(enumProp, labels, _ => accent, onChanged);
+
+		/// <summary>Same as <see cref="CreateSegmentedControl(SerializedProperty,string[],Color,Action)"/>, but
+		/// each segment gets its own colour instead of one shared accent (e.g. a Sequential/Parallel toggle
+		/// where each state has a distinct meaning-colour).</summary>
+		public static VisualElement CreateSegmentedControl(SerializedProperty enumProp, string[] labels, Color[] accentPerSegment, Action onChanged = null) =>
+			CreateSegmentedControl(enumProp, labels, i => i >= 0 && i < accentPerSegment.Length ? accentPerSegment[i] : SperlichEditorTheme.ButtonAccent, onChanged);
+
+		private static VisualElement CreateSegmentedControl(SerializedProperty enumProp, string[] labels, Func<int, Color> accentFor, Action onChanged) {
 			var track = new VisualElement { style = { flexDirection = UnityEngine.UIElements.FlexDirection.Row, marginBottom = 6 } };
 			var segments = new List<VisualElement>();
 			var hovered = new bool[labels.Length];
@@ -275,6 +312,7 @@ namespace Sperlich.EditorKit {
 				for (int i = 0; i < segments.Count; i++) {
 					bool active = i == current;
 					bool isHovered = hovered[i];
+					Color accent = accentFor(i);
 					var seg = segments[i];
 					SetBorderColor(seg, active ? accent : (isHovered ? SperlichEditorTheme.BorderStrong : SperlichEditorTheme.BorderSubtle));
 					if (active) {
@@ -403,7 +441,7 @@ namespace Sperlich.EditorKit {
 			field.style.backgroundColor = SperlichEditorTheme.BgDark;
 			field.style.paddingLeft = 6;
 			field.style.paddingRight = 6;
-			field.style.height = 20;
+			field.style.height = 22;
 			field.style.flexGrow = 1;
 			SetRadius(field, 3);
 			ApplyColorTransition(field, 100, "background-color");
@@ -414,7 +452,7 @@ namespace Sperlich.EditorKit {
 			var valueLabel = new Label {
 				pickingMode = PickingMode.Ignore,
 				style = {
-					fontSize = 11,
+					fontSize = 12,
 					color = SperlichEditorTheme.TextPrimary,
 					flexGrow = 1,
 					flexShrink = 1,
@@ -501,17 +539,18 @@ namespace Sperlich.EditorKit {
 					row.style.alignItems = Align.Center;
 					row.style.paddingLeft = 8;
 					row.style.paddingRight = 8;
-					row.style.paddingTop = 4;
-					row.style.paddingBottom = 4;
+					row.style.paddingTop = 5;
+					row.style.paddingBottom = 5;
 					ApplyColorTransition(row, 80, "background-color");
 					SetHoverCursor(row, MouseCursor.Link);
 
 					var check = new Label(selected ? "✓" : "") {
 						pickingMode = PickingMode.Ignore,
 						style = {
-							fontSize = 10,
+							fontSize = 13,
+							unityFontStyleAndWeight = FontStyle.Bold,
 							color = accentColor,
-							width = 14,
+							width = 16,
 							flexShrink = 0,
 							unityFont = EditorStyles.label?.font
 						}
@@ -519,7 +558,7 @@ namespace Sperlich.EditorKit {
 					var label = new Label(GetOptionLabel(i)) {
 						pickingMode = PickingMode.Ignore,
 						style = {
-							fontSize = 11,
+							fontSize = 12,
 							color = selected ? SperlichEditorTheme.TextPrimary : SperlichEditorTheme.TextSecondary,
 							flexGrow = 1,
 							whiteSpace = WhiteSpace.NoWrap,
@@ -636,6 +675,256 @@ namespace Sperlich.EditorKit {
 			// ausschließlich dismissHandler oben, der pro Klick garantiert vor diesem Handler feuert
 			// (trickle-down vom Root vs. target-phase hier). suppressReopen verhindert, dass ein Klick, der
 			// gerade erst geschlossen hat, im selben Frame sofort wieder öffnet.
+			field.RegisterCallback<PointerDownEvent>(evt => {
+				if (evt.button != 0) return;
+				if (suppressReopen) { suppressReopen = false; return; }
+				OpenPopup();
+			});
+			field.RegisterCallback<DetachFromPanelEvent>(_ => ClosePopup());
+
+			return field;
+		}
+
+		/// <summary>One node of a <see cref="BuildCascadingDropdown"/> tree: either a selectable leaf (an index
+		/// into the caller's flat option list) or a category with children, drilled into in place (Unity
+		/// "Add Component" style) rather than opening a side flyout. Nest categories inside
+		/// <see cref="Children"/> as deep as needed — the popup keeps a back-stack.</summary>
+		public sealed class DropdownMenuNode {
+			public readonly string Label;
+			public readonly Texture2D Icon;
+			public readonly int ItemIndex;
+			public readonly List<DropdownMenuNode> Children;
+			public bool IsLeaf => Children == null;
+
+			private DropdownMenuNode(string label, Texture2D icon, int itemIndex, List<DropdownMenuNode> children) {
+				Label = label;
+				Icon = icon;
+				ItemIndex = itemIndex;
+				Children = children;
+			}
+
+			public static DropdownMenuNode Category(string label, Texture2D icon, List<DropdownMenuNode> children) => new(label, icon, -1, children);
+			public static DropdownMenuNode Leaf(int itemIndex) => new(null, null, itemIndex, null);
+		}
+
+		/// <summary>Cascading category dropdown in the style of Unity's own "Add Component" menu: click the
+		/// field, get a list of categories; click one and the SAME panel slides to show its contents, with a
+		/// back row at the top to go up a level (works to any nesting depth). Use over <see cref="BuildDropdown"/>
+		/// once a flat option list has grown too long to scan (e.g. 25+ items that fall into natural categories).</summary>
+		/// <param name="rootNodes">Top-level tree — a mix of <see cref="DropdownMenuNode.Category"/> and <see cref="DropdownMenuNode.Leaf"/> is fine at any level.</param>
+		/// <param name="getLabel">Display text for a leaf's flat item index (used for the trigger's current value and each leaf row).</param>
+		/// <param name="getSelected">Flat index of the current selection, -1 = none.</param>
+		/// <param name="onSelect">Called with the clicked flat index; must persist the value itself.</param>
+		public static VisualElement BuildCascadingDropdown(List<DropdownMenuNode> rootNodes,
+			Func<int, string> getLabel, Func<int> getSelected, Action<int> onSelect, Color? accent = null) {
+			Color accentColor = accent ?? SperlichEditorTheme.ButtonAccent;
+
+			var field = new VisualElement { pickingMode = PickingMode.Position };
+			field.style.flexDirection = FlexDirection.Row;
+			field.style.alignItems = Align.Center;
+			field.style.justifyContent = Justify.SpaceBetween;
+			field.style.backgroundColor = SperlichEditorTheme.BgDark;
+			field.style.paddingLeft = 6;
+			field.style.paddingRight = 6;
+			field.style.height = 22;
+			field.style.flexGrow = 1;
+			SetRadius(field, 3);
+			ApplyColorTransition(field, 100, "background-color");
+			SetHoverCursor(field, MouseCursor.Link);
+			field.RegisterCallback<MouseEnterEvent>(_ => field.style.backgroundColor = Color.Lerp(SperlichEditorTheme.BgDark, Color.white, 0.06f));
+			field.RegisterCallback<MouseLeaveEvent>(_ => field.style.backgroundColor = SperlichEditorTheme.BgDark);
+
+			var valueLabel = new Label {
+				pickingMode = PickingMode.Ignore,
+				style = { fontSize = 12, color = SperlichEditorTheme.TextPrimary, flexGrow = 1, flexShrink = 1, whiteSpace = WhiteSpace.NoWrap, overflow = Overflow.Hidden, textOverflow = TextOverflow.Ellipsis }
+			};
+			var chevron = new Label("▾") { pickingMode = PickingMode.Ignore, style = { fontSize = 9, color = SperlichEditorTheme.TextMuted, marginLeft = 4, flexShrink = 0 } };
+			field.Add(valueLabel);
+			field.Add(chevron);
+
+			void RefreshLabel() {
+				int idx = getSelected();
+				valueLabel.text = idx >= 0 ? getLabel(idx) : "—";
+			}
+			RefreshLabel();
+
+			VisualElement openPopup = null;
+			VisualElement dismissTree = null;
+			EventCallback<PointerDownEvent> dismissHandler = null;
+			EditorApplication.CallbackFunction focusWatch = null;
+			bool suppressReopen = false;
+
+			void ClosePopup() {
+				openPopup?.RemoveFromHierarchy();
+				openPopup = null;
+				if (dismissTree != null && dismissHandler != null) dismissTree.UnregisterCallback(dismissHandler, TrickleDown.TrickleDown);
+				dismissTree = null;
+				dismissHandler = null;
+				if (focusWatch != null) { EditorApplication.update -= focusWatch; focusWatch = null; }
+			}
+
+			bool ContainsSelected(DropdownMenuNode node) {
+				if (node.IsLeaf) return node.ItemIndex == getSelected();
+				foreach (DropdownMenuNode child in node.Children) if (ContainsSelected(child)) return true;
+				return false;
+			}
+
+			VisualElement MakeRow(string label, Texture2D icon, bool selected, bool hasChevron) {
+				var row = new VisualElement { pickingMode = PickingMode.Position };
+				row.style.flexDirection = FlexDirection.Row;
+				row.style.alignItems = Align.Center;
+				row.style.paddingLeft = 8;
+				row.style.paddingRight = 8;
+				row.style.paddingTop = 5;
+				row.style.paddingBottom = 5;
+				ApplyColorTransition(row, 80, "background-color");
+				SetHoverCursor(row, MouseCursor.Link);
+				row.RegisterCallback<MouseEnterEvent>(_ => row.style.backgroundColor = new Color(1f, 1f, 1f, 0.06f));
+				row.RegisterCallback<MouseLeaveEvent>(_ => row.style.backgroundColor = Color.clear);
+
+				if (icon != null) {
+					row.Add(new Image { image = icon, scaleMode = ScaleMode.ScaleToFit, style = { width = 14, height = 14, marginRight = 6, flexShrink = 0 } });
+				} else {
+					row.Add(new Label(selected ? "✓" : "") { pickingMode = PickingMode.Ignore, style = { fontSize = 13, unityFontStyleAndWeight = FontStyle.Bold, color = accentColor, width = 16, flexShrink = 0 } });
+				}
+				row.Add(new Label(label) {
+					pickingMode = PickingMode.Ignore,
+					style = { fontSize = 12, color = selected ? SperlichEditorTheme.TextPrimary : SperlichEditorTheme.TextSecondary, flexGrow = 1, whiteSpace = WhiteSpace.NoWrap }
+				});
+				if (hasChevron) row.Add(new Label("▸") { pickingMode = PickingMode.Ignore, style = { fontSize = 11, color = SperlichEditorTheme.TextMuted, marginLeft = 6, flexShrink = 0 } });
+				return row;
+			}
+
+			void OpenPopup() {
+				if (openPopup != null) return;
+				VisualElement panelRoot = ResolveOverlayRoot(field);
+				if (panelRoot == null) return;
+
+				var popup = CreateBox(4, SperlichEditorTheme.BorderStrong);
+				popup.style.position = Position.Absolute;
+				popup.style.backgroundColor = SperlichEditorTheme.BgPanel;
+				popup.style.maxHeight = 320;
+				if (EditorStyles.label?.font != null) popup.style.unityFont = EditorStyles.label.font;
+				for (var p = field; p != null; p = p.hierarchy.parent) {
+					int count = p.styleSheets.count;
+					for (int s = 0; s < count; s++) {
+						var sheet = p.styleSheets[s];
+						if (!popup.styleSheets.Contains(sheet)) popup.styleSheets.Add(sheet);
+					}
+				}
+
+				var scroll = new ScrollView(ScrollViewMode.Vertical);
+				popup.Add(scroll);
+
+				// Back-stack of drilled-into levels; empty = showing rootNodes.
+				var navStack = new List<(List<DropdownMenuNode> nodes, string label)>();
+
+				void RenderLevel() {
+					scroll.Clear();
+					List<DropdownMenuNode> nodes = navStack.Count > 0 ? navStack[^1].nodes : rootNodes;
+
+					if (navStack.Count > 0) {
+						var header = new VisualElement { pickingMode = PickingMode.Position };
+						header.style.flexDirection = FlexDirection.Row;
+						header.style.alignItems = Align.Center;
+						header.style.paddingLeft = 8;
+						header.style.paddingRight = 8;
+						header.style.paddingTop = 5;
+						header.style.paddingBottom = 5;
+						header.style.borderBottomWidth = 1;
+						header.style.borderBottomColor = SperlichEditorTheme.BorderSubtle;
+						ApplyColorTransition(header, 80, "background-color");
+						SetHoverCursor(header, MouseCursor.Link);
+						header.RegisterCallback<MouseEnterEvent>(_ => header.style.backgroundColor = new Color(1f, 1f, 1f, 0.06f));
+						header.RegisterCallback<MouseLeaveEvent>(_ => header.style.backgroundColor = Color.clear);
+						header.Add(new Label("◂") { pickingMode = PickingMode.Ignore, style = { fontSize = 13, color = accentColor, marginRight = 6, flexShrink = 0 } });
+						header.Add(new Label(navStack[^1].label) {
+							pickingMode = PickingMode.Ignore,
+							style = { fontSize = 12, unityFontStyleAndWeight = FontStyle.Bold, color = SperlichEditorTheme.TextPrimary, flexGrow = 1 }
+						});
+						header.RegisterCallback<ClickEvent>(evt => {
+							evt.StopPropagation();
+							navStack.RemoveAt(navStack.Count - 1);
+							RenderLevel();
+						});
+						scroll.Add(header);
+					}
+
+					foreach (DropdownMenuNode node in nodes) {
+						if (node.IsLeaf) {
+							bool selected = node.ItemIndex == getSelected();
+							var row = MakeRow(getLabel(node.ItemIndex), null, selected, hasChevron: false);
+							row.RegisterCallback<ClickEvent>(evt => {
+								evt.StopPropagation();
+								onSelect(node.ItemIndex);
+								RefreshLabel();
+								ClosePopup();
+							});
+							scroll.Add(row);
+						} else {
+							var row = MakeRow(node.Label, node.Icon, ContainsSelected(node), hasChevron: true);
+							row.RegisterCallback<ClickEvent>(evt => {
+								evt.StopPropagation();
+								navStack.Add((node.Children, node.Label));
+								RenderLevel();
+							});
+							scroll.Add(row);
+						}
+					}
+					// Quick fade blip on every render (open AND each drill-in/back navigation) — cheap micro
+					// feedback that something changed. Driven imperatively (not a CSS transition): a
+					// transition needs its "from" value actually painted for one frame before the "to" value
+					// lands, which a same-frame Clear()+repopulate never gives it — it would just snap.
+					scroll.style.opacity = 0f;
+					scroll.experimental.animation.Start(0f, 1f, 110, (e, v) => e.style.opacity = v);
+				}
+				RenderLevel();
+
+				panelRoot.Add(popup);
+				popup.BringToFront();
+
+				const float margin = 4f;
+				Rect fieldBound = field.worldBound;
+				Vector2 topLeft = panelRoot.WorldToLocal(new Vector2(fieldBound.xMin, fieldBound.yMax));
+				Vector2 topRight = panelRoot.WorldToLocal(new Vector2(fieldBound.xMax, fieldBound.yMax));
+				float popupMinWidth = Mathf.Max(fieldBound.width, 170f);
+				popup.style.minWidth = popupMinWidth;
+				float panelWidth = panelRoot.contentRect.width;
+				float targetLeft = topLeft.x;
+				if (panelWidth > 0f && targetLeft + popupMinWidth > panelWidth - margin) {
+					targetLeft = Mathf.Max(margin, topRight.x - popupMinWidth);
+				}
+				popup.style.left = targetLeft;
+				popup.style.top = topLeft.y + 2;
+
+				popup.style.opacity = 0f;
+				popup.experimental.animation.Start(0f, 1f, 120, (e, v) => {
+					e.style.opacity = v;
+					e.style.translate = new Translate(0, -4f * (1f - v), 0);
+				});
+
+				openPopup = popup;
+				dismissTree = field.panel?.visualTree;
+				if (dismissTree != null) {
+					dismissHandler = evt => {
+						if (openPopup == null) return;
+						var t = evt.target as VisualElement;
+						if (t != null && (t == openPopup || openPopup.Contains(t))) return;
+						bool clickedField = t != null && (t == field || field.Contains(t));
+						ClosePopup();
+						if (clickedField) suppressReopen = true;
+					};
+					dismissTree.RegisterCallback(dismissHandler, TrickleDown.TrickleDown);
+				}
+
+				EditorWindow triggerWindow = EditorWindow.focusedWindow;
+				focusWatch = () => {
+					if (openPopup == null) return;
+					if (EditorWindow.focusedWindow != triggerWindow) ClosePopup();
+				};
+				EditorApplication.update += focusWatch;
+			}
+
 			field.RegisterCallback<PointerDownEvent>(evt => {
 				if (evt.button != 0) return;
 				if (suppressReopen) { suppressReopen = false; return; }
@@ -980,7 +1269,7 @@ namespace Sperlich.EditorKit {
 		/// <summary>Flaches Enum-Dropdown im Sperlich-Stil — ersetzt Unitys native Enum-Popups.</summary>
 		/// <param name="enumType">Optional: der echte Enum-Typ. Ist er gesetzt, bekommt jede Zeile ein
 		/// abgerundetes Kästchen mit dem dahinterliegenden Konstantenwert (z.B. <c>Priority.High = 10</c>).</param>
-		public static VisualElement CreateEnumDropdown(SerializedProperty enumProp, Color? accent = null, Action<int> onChanged = null, Type enumType = null) {
+		public static VisualElement CreateEnumDropdown(SerializedProperty enumProp, Color? accent = null, Action<int> onChanged = null, Type enumType = null, bool sortAlphabetically = false) {
 			// enumNames / enumDisplayNames throw ("type is not a enum value") if the SerializedProperty has
 			// gone stale — e.g. an SDictionary key element after its backing list was rewritten by the
 			// serialization callback. Fail soft instead of crashing the whole inspector.
@@ -1007,20 +1296,33 @@ namespace Sperlich.EditorKit {
 				return valueByName.TryGetValue(raw[index], out long v) ? v.ToString() : null;
 			}
 
+			// Display-order permutation: identity normally, alphabetical-by-label when requested. Recomputed
+			// per call (cheap — a handful of entries) so it stays correct if the property's option set changes.
+			int[] DisplayOrder() {
+				string[] names = SafeNames();
+				if (names == null) return null;
+				var order = new int[names.Length];
+				for (int k = 0; k < order.Length; k++) order[k] = k;
+				if (sortAlphabetically) Array.Sort(order, (a, b) => string.Compare(LabelFor(a), LabelFor(b), StringComparison.OrdinalIgnoreCase));
+				return order;
+			}
+
 			var dd = BuildDropdown(
-				() => SafeNames()?.Length ?? 0,
-				LabelFor,
-				SafeIndex,
-				i => {
+				() => DisplayOrder()?.Length ?? 0,
+				displayIndex => { int[] order = DisplayOrder(); return LabelFor(order != null ? order[displayIndex] : displayIndex); },
+				() => { int[] order = DisplayOrder(); return order != null ? Array.IndexOf(order, SafeIndex()) : SafeIndex(); },
+				displayIndex => {
 					try {
-						if (enumProp.enumValueIndex == i) return;
-						enumProp.enumValueIndex = i;
+						int[] order = DisplayOrder();
+						int actual = order != null ? order[displayIndex] : displayIndex;
+						if (enumProp.enumValueIndex == actual) return;
+						enumProp.enumValueIndex = actual;
 						enumProp.serializedObject.ApplyModifiedProperties();
-						onChanged?.Invoke(i);
+						onChanged?.Invoke(actual);
 					} catch { /* stale property */ }
 				},
 				accent,
-				valueByName != null ? (Func<int, string>)BadgeFor : null);
+				valueByName != null ? (Func<int, string>)(displayIndex => { int[] order = DisplayOrder(); return BadgeFor(order != null ? order[displayIndex] : displayIndex); }) : null);
 			dd.TrackPropertyValue(enumProp, _ => {
 				Label valLbl = dd.Q<Label>();
 				if (valLbl != null) valLbl.text = LabelFor(SafeIndex());

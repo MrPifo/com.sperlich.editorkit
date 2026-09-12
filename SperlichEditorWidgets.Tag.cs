@@ -5,14 +5,15 @@ namespace Sperlich.EditorKit {
 
 	public static partial class SperlichEditorWidgets {
 
-		/// <summary>Small colored pill for <c>[Tag]</c>.</summary>
-		public static VisualElement CreateTagPill(string label, TagColor color) {
+		/// <summary>Small colored pill for <c>[Tag]</c> — resolved colour (hex / <see cref="TintColor"/> /
+		/// <see cref="TagColor"/> preset are all pre-resolved to a <c>Color</c> before this is called).</summary>
+		public static VisualElement CreateTagPill(string label, Color color) {
 			var pill = new Label(label) {
 				pickingMode = PickingMode.Ignore,
 				style = {
 					fontSize = 9, unityFontStyleAndWeight = FontStyle.Bold,
-					color = TagTextColor(color),
-					backgroundColor = TagColorToColor(color),
+					color = new Color(0.08f, 0.09f, 0.1f), // dark text reads on every preset — all are mid-to-light tones
+					backgroundColor = color,
 					paddingLeft = 5, paddingRight = 5, paddingTop = 1, paddingBottom = 1,
 					marginLeft = 5, flexShrink = 0, unityTextAlign = TextAnchor.MiddleCenter,
 				}
@@ -20,6 +21,9 @@ namespace Sperlich.EditorKit {
 			SetRadius(pill, 8);
 			return pill;
 		}
+
+		/// <summary>Convenience overload for the <see cref="TagColor"/> preset palette.</summary>
+		public static VisualElement CreateTagPill(string label, TagColor color) => CreateTagPill(label, TagColorToColor(color));
 
 		/// <summary>Maps a <see cref="TagColor"/> preset to an actual color — kept here (not on the enum,
 		/// which lives in the Attributes assembly) because <c>Color</c> can't be an attribute argument.</summary>
@@ -36,8 +40,5 @@ namespace Sperlich.EditorKit {
 			TagColor.Purple => new Color(0.58f, 0.45f, 0.82f),
 			_ => SperlichEditorTheme.ButtonAccent,
 		};
-
-		/// <summary>Dark text reads on every preset in this palette — all presets are mid-to-light tones.</summary>
-		private static Color TagTextColor(TagColor color) => new Color(0.08f, 0.09f, 0.1f);
 	}
 }

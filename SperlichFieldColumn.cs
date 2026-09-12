@@ -23,6 +23,12 @@ namespace Sperlich.EditorKit {
 		/// field control. Row post-processors resolve it by this name.</summary>
 		public const string ControlCellName = "sperlich-field-control";
 
+		/// <summary>Name of the "×" clear-reference button an <c>ObjectReference</c> row's <see cref="Property"/>
+		/// adds next to the field — external code that walks a row's descendants for its label (e.g. to append
+		/// a "[Self]" hint) must skip this element, since a naive <c>Q&lt;Label&gt;()</c> with no class filter can
+		/// otherwise match it instead of the field's own internal label and overwrite the "×" with label text.</summary>
+		public const string ClearButtonName = "sperlich-clear-button";
+
 		/// <summary>Feste Breite der Label-Spalte in Pixel. Alle Zeilen dieser Column nutzen denselben Wert.</summary>
 		public float LabelWidth { get; }
 
@@ -143,7 +149,54 @@ namespace Sperlich.EditorKit {
 				return Row(label ?? prop.displayName, gf, indent);
 			}
 
+			// Vector2/3/4/2Int/3Int -> per-axis Sperlich drag fields instead of Unity's native compound
+			// field, which has no drag grip and doesn't line up with the shared label column.
+			if (prop.propertyType == SerializedPropertyType.Vector2 || prop.propertyType == SerializedPropertyType.Vector3
+			    || prop.propertyType == SerializedPropertyType.Vector4 || prop.propertyType == SerializedPropertyType.Vector2Int
+			    || prop.propertyType == SerializedPropertyType.Vector3Int) {
+				return Row(label ?? prop.displayName, SperlichEditorWidgets.CreateVectorField(prop), indent);
+			}
+
+			// Object references -> native (type-correct) PropertyField, but append the clear-× the rest of the
+			// inspector's object fields (MakeTargetRow / CreateObjectField) already have.
+			if (prop.propertyType == SerializedPropertyType.ObjectReference) {
+				var opf = new PropertyField(prop, label ?? prop.displayName);
+				opf.BindProperty(prop);
+				ApplyColumnLabel(opf, ColumnWidth(indent), indent * IndentStep);
+				opf.style.flexGrow = 1;
+
+				var clear = new Label("×") {
+					name = ClearButtonName,
+					tooltip = "Clear (set to None)",
+					pickingMode = PickingMode.Position,
+					style = {
+						width = 16, flexShrink = 0, marginLeft = 2,
+						unityTextAlign = TextAnchor.MiddleCenter, fontSize = 13,
+						unityFontStyleAndWeight = FontStyle.Bold, color = SperlichEditorTheme.TextMuted,
+					}
+				};
+				SperlichEditorWidgets.SetHoverCursor(clear, UnityEditor.MouseCursor.Link);
+				clear.RegisterCallback<MouseEnterEvent>(_ => clear.style.color = SperlichEditorTheme.BadgeDangerBg);
+				clear.RegisterCallback<MouseLeaveEvent>(_ => clear.style.color = SperlichEditorTheme.TextMuted);
+				clear.RegisterCallback<ClickEvent>(evt => {
+					evt.StopPropagation();
+					prop.objectReferenceValue = null;
+					prop.serializedObject.ApplyModifiedProperties();
+				});
+				void SyncClear() => clear.style.display = prop.objectReferenceValue != null ? DisplayStyle.Flex : DisplayStyle.None;
+				SyncClear();
+
+				var objRow = new VisualElement {
+					style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, minHeight = 20, marginTop = 1, marginBottom = 1 }
+				};
+				objRow.Add(opf);
+				objRow.Add(clear);
+				objRow.TrackPropertyValue(prop, _ => SyncClear());
+				return objRow;
+			}
+
 			var pf = new PropertyField(prop, label ?? prop.displayName);
+			pf.BindProperty(prop);
 			float w = ColumnWidth(indent);
 			float marginLeft = indent * IndentStep;
 			ApplyColumnLabel(pf, w, marginLeft);
@@ -162,6 +215,7 @@ namespace Sperlich.EditorKit {
 		public static VisualElement Raw(SerializedProperty prop, string label = null) {
 			if (prop == null) return new VisualElement();
 			var pf = label == null ? new PropertyField(prop) : new PropertyField(prop, label);
+			pf.BindProperty(prop);
 			EventCallback<GeometryChangedEvent> cb = null;
 			cb = _ => {
 				DeAlign(pf);

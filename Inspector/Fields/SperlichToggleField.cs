@@ -16,7 +16,7 @@ namespace Sperlich.EditorKit {
 		private readonly PillToggle pill;
 		private readonly Label mixed;
 
-		public SperlichToggleField(SerializedProperty boolProp) {
+		public SperlichToggleField(SerializedProperty boolProp, Color? onBg = null) {
 			style.flexDirection = FlexDirection.Row;
 			style.alignItems = Align.Center;
 			// Hand cursor over the toggle, and a click anywhere on this element toggles — the pill's own
@@ -31,7 +31,7 @@ namespace Sperlich.EditorKit {
 				Refresh(boolProp);
 			}
 
-			pill = new PillToggle(boolProp.boolValue);
+			pill = new PillToggle(boolProp.boolValue, onBg);
 			pill.Clicked += Toggle;
 			Add(pill);
 

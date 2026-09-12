@@ -57,6 +57,7 @@ namespace Sperlich.EditorKit {
 			public float PbMin;
 			public float PbMax;
 			public string PbColor;
+			public TintColor PbTint;
 			public int PbHeight;
 			public string PbMinMember;
 			public string PbMaxMember;
@@ -71,10 +72,18 @@ namespace Sperlich.EditorKit {
 			public bool SceneUseFullPath;
 
 			public string TintColorHtml;
+			public TintColor TintColorEnum;
 			public bool TintBackground;
 
-			/// <summary>(<c>label</c>, <c>colorHtml</c>, <c>style</c>) tuples for stacked <c>[HLine]</c>s; <c>null</c> = none.</summary>
-			public List<(string label, string colorHtml, LineStyle style)> HLines;
+			/// <summary>From <c>[AccentColor]</c> — overrides the control's accent (slider fill, toggle on-
+			/// colour, knob arc, enum dropdown, collection header). <c>null</c>/<see cref="Sperlich.EditorKit.TintColor.None"/>
+			/// = theme accent.</summary>
+			public string AccentColorHex;
+			public TintColor AccentColorTint;
+
+			/// <summary>(<c>label</c>, <c>colorHtml</c>, <c>tint</c>, <c>style</c>) tuples for stacked
+			/// <c>[HLine]</c>s; <c>null</c> = none.</summary>
+			public List<(string label, string colorHtml, TintColor tint, LineStyle style)> HLines;
 
 			/// <summary>Callback method names from <c>[OnValueChanged]</c>; <c>null</c> = none.</summary>
 			public List<string> OnValueChangedMethods;
@@ -100,7 +109,10 @@ namespace Sperlich.EditorKit {
 			}
 
 			/// <summary>(<c>label</c>, <c>color</c>) tuples for stacked <c>[Tag]</c>s; <c>null</c> = none.</summary>
-			public List<(string label, TagColor color)> Tags;
+			/// <summary>(<c>label</c>, <c>color</c>) tuples for stacked <c>[Tag]</c>s; the colour is resolved
+			/// here already (hex &gt; <see cref="Sperlich.EditorKit.TintColor"/> &gt; <see cref="TagColor"/>
+			/// preset) so downstream code never needs to know which source it came from.</summary>
+			public List<(string label, Color color)> Tags;
 
 			public bool Required;
 			public string RequiredMessage;
@@ -265,6 +277,7 @@ namespace Sperlich.EditorKit {
 				meta.PbMin = pb.Min;
 				meta.PbMax = pb.Max;
 				meta.PbColor = pb.Color;
+				meta.PbTint = pb.Tint;
 				meta.PbHeight = pb.Height;
 				meta.PbMinMember = pb.MinMember;
 				meta.PbMaxMember = pb.MaxMember;
@@ -284,11 +297,17 @@ namespace Sperlich.EditorKit {
 
 			if (f.GetCustomAttribute<TintColorAttribute>() is { } tint) {
 				meta.TintColorHtml = tint.Color;
+				meta.TintColorEnum = tint.Tint;
 				meta.TintBackground = tint.Background;
 			}
 
+			if (f.GetCustomAttribute<AccentColorAttribute>() is { } accent) {
+				meta.AccentColorHex = accent.ColorHex;
+				meta.AccentColorTint = accent.Tint;
+			}
+
 			foreach (HLineAttribute hl in f.GetCustomAttributes<HLineAttribute>(true)) {
-				(meta.HLines ??= new()).Add((hl.Label, hl.Color, hl.Style));
+				(meta.HLines ??= new()).Add((hl.Label, hl.Color, hl.Tint, hl.Style));
 			}
 
 			foreach (OnValueChangedAttribute ov in f.GetCustomAttributes<OnValueChangedAttribute>(true)) {
@@ -311,7 +330,8 @@ namespace Sperlich.EditorKit {
 			}
 
 			foreach (TagAttribute tag in f.GetCustomAttributes<TagAttribute>(true)) {
-				(meta.Tags ??= new()).Add((tag.Label, tag.Color));
+				Color resolved = SperlichEditorWidgets.ResolveColor(tag.ColorHex, tag.Tint) ?? SperlichEditorWidgets.TagColorToColor(tag.Color);
+				(meta.Tags ??= new()).Add((tag.Label, resolved));
 			}
 
 			if (f.GetCustomAttribute<RequiredAttribute>() is { } req) {

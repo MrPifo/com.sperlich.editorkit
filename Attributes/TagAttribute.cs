@@ -15,11 +15,35 @@ namespace Sperlich.EditorKit {
 	public sealed class TagAttribute : Attribute {
 
 		public string Label { get; }
+
+		/// <summary>Preset pill colour. Ignored when <see cref="ColorHex"/> or <see cref="Tint"/> is set.</summary>
 		public TagColor Color { get; }
 
-		public TagAttribute(string label, TagColor color = TagColor.Cyan) {
+		/// <summary>Custom colour as hex string, taking priority over <see cref="Color"/> and <see cref="Tint"/>.</summary>
+		public string ColorHex { get; }
+
+		/// <summary>Custom colour from the <see cref="Sperlich.EditorKit.TintColor"/> palette, taking priority
+		/// over <see cref="Color"/> (but not <see cref="ColorHex"/>).</summary>
+		public TintColor Tint { get; }
+
+		public TagAttribute(string label, TagColor color = TagColor.Cyan, string colorHex = null, TintColor tint = TintColor.None) {
 			Label = label;
 			Color = color;
+			ColorHex = colorHex;
+			Tint = tint;
+		}
+
+		/// <summary>Pick the pill colour from the built-in <see cref="Sperlich.EditorKit.TintColor"/> palette
+		/// instead of the smaller <see cref="TagColor"/> preset set.</summary>
+		public TagAttribute(string label, TintColor tint) {
+			Label = label;
+			Tint = tint;
+		}
+
+		/// <summary>Pick the pill colour as a hex string instead of a <see cref="TagColor"/> preset.</summary>
+		public TagAttribute(string label, string colorHex) {
+			Label = label;
+			ColorHex = colorHex;
 		}
 	}
 }
