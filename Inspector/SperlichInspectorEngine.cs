@@ -83,7 +83,11 @@ namespace Sperlich.EditorKit {
 				members.Add(new Member(it.Copy(), plan?.Get(it.name)));
 			}
 
-			List<PendingEmit> pending = BuildPendingEmits(plan, members, so);
+			BuildPlanMembers(container, col, so, plan, members, null);
+		}
+
+		private static void BuildPlanMembers(VisualElement container, SperlichFieldColumn col, SerializedObject so, SperlichInspectorPlan plan, List<Member> members, Func<object[]> targetResolver) {
+			List<PendingEmit> pending = BuildPendingEmits(plan, members, so, targetResolver);
 			Dictionary<int, (int end, BoxAttribute box, string firstName)> boxSpans = ComputeBoxSpans(members);
 			(Dictionary<int, string> tabIndexGroup, Dictionary<string, TabGroupSpec> tabSpecs) = ComputeTabGroups(members);
 			var tabGroupBuilt = new HashSet<string>();
@@ -278,6 +282,12 @@ namespace Sperlich.EditorKit {
 				}
 				default:
 					// int / float
+					if (m.Meta != null && m.Meta.HasRange) {
+						bool intMode = prop.propertyType == SerializedPropertyType.Integer;
+						VisualElement slider = SperlichEditorWidgets.CreateRangeSlider(prop, m.Meta.RangeMin, m.Meta.RangeMax, intMode, ResolveAccent(m.Meta));
+						slider.style.flexGrow = 1;
+						return slider;
+					}
 					return SperlichEditorWidgets.CreateDragNumberField(prop);
 			}
 		}
@@ -449,6 +459,11 @@ namespace Sperlich.EditorKit {
 			// PropertyFields, so they need the manual prefab-override bar too (this was the "numbers show
 			// no blue bar" gap).
 			if (prop.propertyType == SerializedPropertyType.Integer || prop.propertyType == SerializedPropertyType.Float) {
+				if (meta != null && meta.HasRange) {
+					bool intMode = prop.propertyType == SerializedPropertyType.Integer;
+					VisualElement slider = SperlichEditorWidgets.CreateRangeSlider(prop, meta.RangeMin, meta.RangeMax, intMode, ResolveAccent(meta));
+					return OverrideRow(col.Row(prop.displayName, slider), prop);
+				}
 				if (SperlichEditorWidgets.TryGetRange(prop, out float rMin, out float rMax)) {
 					bool intMode = prop.propertyType == SerializedPropertyType.Integer;
 					VisualElement slider = SperlichEditorWidgets.CreateRangeSlider(prop, rMin, rMax, intMode, ResolveAccent(meta));
@@ -797,16 +812,83 @@ namespace Sperlich.EditorKit {
 			foldout.Add(body);
 
 			var col = new SperlichFieldColumn(140f);
+			Type nestedType = ResolvePropertyType(prop.serializedObject, prop.propertyPath);
+			SperlichInspectorPlan nestedPlan = nestedType != null ? SperlichInspectorPlan.For(nestedType) : null;
+
+			var nestedMembers = new List<Member>();
 			SerializedProperty child = prop.Copy();
 			SerializedProperty end = prop.GetEndProperty();
 			bool enter = true;
 			while (child.NextVisible(enter) && !SerializedProperty.EqualContents(child, end)) {
 				enter = false;
-				// nested members have no plan (rare to see [Header] inside a struct) — decorators skipped
-				VisualElement r = BuildRow(col, child.Copy(), null);
-				body.Add(r);
+				nestedMembers.Add(new Member(child.Copy(), nestedPlan?.Get(child.name)));
 			}
+
+			Func<object[]> targetResolver = () => ResolvePropertyTargets(prop.serializedObject, prop.propertyPath);
+			BuildPlanMembers(body, col, prop.serializedObject, nestedPlan, nestedMembers, targetResolver);
 			return wrap;
+		}
+
+		public static object[] ResolvePropertyTargets(SerializedObject so, string propertyPath) {
+			if (so == null || string.IsNullOrEmpty(propertyPath)) return Array.Empty<object>();
+			UnityEngine.Object[] roots = ResolveTargets(so);
+			var result = new List<object>(roots.Length);
+			string[] tokens = propertyPath.Split('.');
+
+			foreach (UnityEngine.Object root in roots) {
+				if (root == null) continue;
+				object current = root;
+				for (int i = 0; i < tokens.Length && current != null; i++) {
+					string token = tokens[i];
+					if (token == "Array") {
+						if (i + 1 < tokens.Length && tokens[i + 1].StartsWith("data[") && tokens[i + 1].EndsWith("]")) {
+							string idxStr = tokens[i + 1].Substring(5, tokens[i + 1].Length - 6);
+							if (int.TryParse(idxStr, out int idx) && current is System.Collections.IList list && idx >= 0 && idx < list.Count) {
+								current = list[idx];
+							} else {
+								current = null;
+							}
+							i++;
+							continue;
+						}
+					}
+					FieldInfo fi = null;
+					for (Type t = current.GetType(); t != null && t != typeof(object); t = t.BaseType) {
+						fi = t.GetField(token, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+						if (fi != null) break;
+					}
+					current = fi?.GetValue(current);
+				}
+				if (current != null) result.Add(current);
+			}
+			return result.ToArray();
+		}
+
+		public static Type ResolvePropertyType(SerializedObject so, string propertyPath) {
+			if (so == null || string.IsNullOrEmpty(propertyPath)) return null;
+			UnityEngine.Object root = so.targetObject;
+			if (root == null) return null;
+			Type currentType = root.GetType();
+			string[] tokens = propertyPath.Split('.');
+
+			for (int i = 0; i < tokens.Length && currentType != null; i++) {
+				string token = tokens[i];
+				if (token == "Array") {
+					if (i + 1 < tokens.Length && tokens[i + 1].StartsWith("data[")) {
+						if (currentType.IsArray) currentType = currentType.GetElementType();
+						else if (currentType.IsGenericType && currentType.GetGenericTypeDefinition() == typeof(List<>)) currentType = currentType.GetGenericArguments()[0];
+						i++;
+						continue;
+					}
+				}
+				FieldInfo fi = null;
+				for (Type t = currentType; t != null && t != typeof(object); t = t.BaseType) {
+					fi = t.GetField(token, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+					if (fi != null) break;
+				}
+				currentType = fi?.FieldType;
+			}
+			return currentType;
 		}
 
 		private static VisualElement FullWidthPropertyField(SerializedProperty prop) {

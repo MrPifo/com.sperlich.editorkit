@@ -12,7 +12,7 @@ namespace Sperlich.EditorKit {
 	/// <c>#if</c> needed at call sites.</para>
 	/// </summary>
 	[Conditional("UNITY_EDITOR")]
-	[AttributeUsage(AttributeTargets.Field, AllowMultiple = false, Inherited = true)]
+	[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
 	public sealed class BoxAttribute : Attribute {
 
 		/// <summary>Optional bold header drawn on the box. <c>null</c> = frame only.</summary>

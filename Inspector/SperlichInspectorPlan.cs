@@ -174,6 +174,12 @@ namespace Sperlich.EditorKit {
 			public string Label;
 			public int PollMs;
 			public int MetadataToken;
+			public string Suffix;
+			public bool Badge;
+			public TintColor Tint;
+			public string ColorHex;
+			public string RowGroup;
+			public BoxAttribute Box;
 		}
 
 		private static readonly Dictionary<Type, SperlichInspectorPlan> Cache = new();
@@ -393,10 +399,21 @@ namespace Sperlich.EditorKit {
 			var sp = p.GetCustomAttribute<ShowPropertyAttribute>();
 			if (sp == null) return;
 			if (p.GetIndexParameters().Length != 0 || p.GetMethod == null) return;
+			var row = p.GetCustomAttribute<SRowAttribute>();
+			var box = p.GetCustomAttribute<BoxAttribute>();
+			var tint = p.GetCustomAttribute<TintColorAttribute>();
+			var accent = p.GetCustomAttribute<AccentColorAttribute>();
+
 			ShowMembers.Add(new ShowMemberMeta {
 				Member = p, IsField = false, Name = p.Name,
 				Label = sp.Label ?? ObjectNames.NicifyVariableName(p.Name),
 				PollMs = Mathf.Max(50, sp.PollMs), MetadataToken = p.MetadataToken,
+				Suffix = sp.Suffix,
+				Badge = sp.Badge,
+				Tint = sp.Tint != TintColor.None ? sp.Tint : (tint?.Tint ?? TintColor.None),
+				ColorHex = sp.ColorHex ?? accent?.ColorHex ?? tint?.Color,
+				RowGroup = row?.Group,
+				Box = box,
 			});
 		}
 

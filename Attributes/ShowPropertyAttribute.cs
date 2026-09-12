@@ -18,8 +18,26 @@ namespace Sperlich.EditorKit {
 		/// <summary>Poll interval in milliseconds.</summary>
 		public int PollMs { get; }
 
+		/// <summary>Optional suffix text (e.g. unit like "m", "ms") appended to the formatted value.</summary>
+		public string Suffix { get; set; }
+
+		/// <summary>When true, formats the value as a badge/pill (e.g. TRUE / FALSE).</summary>
+		public bool Badge { get; set; }
+
+		/// <summary>Optional tint colour from the <see cref="TintColor"/> palette.</summary>
+		public TintColor Tint { get; set; } = TintColor.None;
+
+		/// <summary>Optional HTML colour string (e.g. "#4ecdc4").</summary>
+		public string ColorHex { get; set; }
+
 		public ShowPropertyAttribute(string label = null, int pollMs = 250) {
 			Label = label;
+			PollMs = pollMs;
+		}
+
+		public ShowPropertyAttribute(string label, string suffix, int pollMs = 250) {
+			Label = label;
+			Suffix = suffix;
 			PollMs = pollMs;
 		}
 	}

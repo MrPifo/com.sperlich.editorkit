@@ -23,7 +23,7 @@ namespace Sperlich.EditorKit {
 	/// stripped from player builds.</para>
 	/// </summary>
 	[Conditional("UNITY_EDITOR")]
-	[AttributeUsage(AttributeTargets.Field, AllowMultiple = false, Inherited = true)]
+	[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
 	public sealed class SRowAttribute : Attribute {
 
 		/// <summary>Fields sharing this key (and adjacent in declaration order) go on the same line. Empty =
