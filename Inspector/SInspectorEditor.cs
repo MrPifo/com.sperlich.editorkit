@@ -14,8 +14,13 @@ namespace Sperlich.EditorKit {
 	/// <para>If the inspected type carries <see cref="SInspectorAttribute"/> the body is drawn by
 	/// <see cref="SperlichInspectorEngine"/>; otherwise it renders the plain default inspector, i.e. the
 	/// fallback editor is invisible.</para>
+	///
+	/// <para>Public (not just used by the two fallback editors below) so a package with its own non-fallback
+	/// <c>[CustomEditor]</c> for a base type (e.g. a UI framework's own Editor for its base "Menu"/"View" class)
+	/// can still honor <see cref="SInspectorAttribute"/> on subclasses by calling <see cref="Build"/> itself
+	/// instead of always falling back to the plain default inspector.</para>
 	/// </summary>
-	internal static class SInspectorGate {
+	public static class SInspectorGate {
 
 		public static bool IsEnabledFor(Type type) =>
 			type != null && Attribute.IsDefined(type, typeof(SInspectorAttribute), inherit: true);
