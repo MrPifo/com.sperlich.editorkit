@@ -193,6 +193,7 @@ namespace Sperlich.EditorKit {
 						InvokeChangeCallback(targets[i], mName, fi.FieldType, oldV, newV);
 					}
 				}
+				so.Update();
 			});
 		}
 
@@ -201,23 +202,24 @@ namespace Sperlich.EditorKit {
 		}
 
 		private static void InvokeChangeCallback(UnityEngine.Object target, string name, Type valueType, object oldV, object newV) {
-			Type t = target.GetType();
-			foreach (MethodInfo m in t.GetMethods(InstanceMembers)) {
-				if (m.Name != name) continue;
-				ParameterInfo[] ps = m.GetParameters();
-				try {
-					if (ps.Length == 0) { m.Invoke(target, null); return; }
-					if (ps.Length == 1 && (ps[0].ParameterType == typeof(object) || ps[0].ParameterType.IsAssignableFrom(valueType))) {
-						m.Invoke(target, new[] { newV });
+			for (Type t = target.GetType(); t != null && t != typeof(UnityEngine.Object); t = t.BaseType) {
+				foreach (MethodInfo m in t.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly)) {
+					if (m.Name != name) continue;
+					ParameterInfo[] ps = m.GetParameters();
+					try {
+						if (ps.Length == 0) { m.Invoke(target, null); return; }
+						if (ps.Length == 1 && (ps[0].ParameterType == typeof(object) || ps[0].ParameterType.IsAssignableFrom(valueType))) {
+							m.Invoke(target, new[] { newV });
+							return;
+						}
+						if (ps.Length == 2) { m.Invoke(target, new[] { oldV, newV }); return; }
+					} catch (Exception e) {
+						Debug.LogException(e.InnerException ?? e);
 						return;
 					}
-					if (ps.Length == 2) { m.Invoke(target, new[] { oldV, newV }); return; }
-				} catch (Exception e) {
-					Debug.LogException(e.InnerException ?? e);
-					return;
 				}
 			}
-			Debug.LogWarning($"[SInspector] {t.Name}: [OnValueChanged] method '{name}' not found (expected (), (T) or (T, T)).");
+			Debug.LogWarning($"[SInspector] {target.GetType().Name}: [OnValueChanged] method '{name}' not found (expected (), (T) or (T, T)).");
 		}
 
 		// ── [ShowIf] / [HideIf] ────────────────────────────────────────────────────
