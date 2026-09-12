@@ -58,8 +58,8 @@ namespace Sperlich.EditorKit {
 				shell.style.marginTop = 3;
 				shell.style.marginBottom = 3;
 				shell.Add(header);
-				chevronBody.style.paddingLeft = 0;
-				chevronBody.style.paddingRight = 0;
+				chevronBody.style.paddingLeft = 3;
+				chevronBody.style.paddingRight = 3;
 				chevronBody.style.paddingTop = 0; // BuildInto re-adds 3 unless the first child is a bleed [Header]
 				chevronBody.style.paddingBottom = 4;
 				shell.Add(chevronBody);
@@ -90,14 +90,14 @@ namespace Sperlich.EditorKit {
 					});
 					boxEl.Add(titleRow);
 					var contentBody = new VisualElement {
-						style = { paddingLeft = 0, paddingRight = 0, paddingTop = 0, paddingBottom = 4 }
+						style = { paddingLeft = 3, paddingRight = 3, paddingTop = 0, paddingBottom = 4 }
 					};
 					boxEl.Add(contentBody);
 					parent.Add(boxEl);
 					body = contentBody;
 				} else {
-					boxEl.style.paddingLeft = 0;
-					boxEl.style.paddingRight = 0;
+					boxEl.style.paddingLeft = 3;
+					boxEl.style.paddingRight = 3;
 					boxEl.style.paddingTop = 3;
 					boxEl.style.paddingBottom = 4;
 					if (sidebarColor.HasValue) {

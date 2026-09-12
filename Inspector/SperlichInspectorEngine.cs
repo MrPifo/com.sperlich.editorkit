@@ -799,8 +799,8 @@ namespace Sperlich.EditorKit {
 			wrap.style.backgroundColor = SperlichEditorTheme.BgStepBody;
 			wrap.style.marginTop = 2;
 			wrap.style.marginBottom = 2;
-			wrap.style.paddingLeft = 0;
-			wrap.style.paddingRight = 0;
+			wrap.style.paddingLeft = 3;
+			wrap.style.paddingRight = 3;
 			wrap.style.paddingTop = 3;
 			wrap.style.paddingBottom = 4;
 
