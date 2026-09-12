@@ -6,35 +6,92 @@ namespace Sperlich.EditorKit {
 	public static partial class SperlichEditorWidgets {
 
 		/// <summary>Horizontal separator line for <c>[HLine]</c>. <paramref name="style"/> picks solid /
-		/// dashed / dotted; a non-empty <paramref name="label"/> puts a small muted caption in the middle
-		/// with the line running left and right of it.</summary>
-		public static VisualElement CreateSeparatorLine(string label, Color color, LineStyle style, int thickness = 1) {
-			var wrap = new VisualElement {
-				style = {
-					flexDirection = FlexDirection.Row, alignItems = Align.Center,
-					marginTop = 7, marginBottom = 7, flexShrink = 0,
-				}
-			};
-
+		/// dashed / dotted; a non-empty <paramref name="label"/> can be placed inline or above the line,
+		/// aligned left / center / right.</summary>
+		public static VisualElement CreateSeparatorLine(string label, Color color, LineStyle style, HLineAlign align = HLineAlign.Center, HLinePlacement placement = HLinePlacement.Inline, int thickness = 1) {
 			if (string.IsNullOrEmpty(label)) {
+				var wrap = new VisualElement {
+					style = {
+						flexDirection = FlexDirection.Row, alignItems = Align.Center,
+						marginTop = 7, marginBottom = 7, flexShrink = 0,
+					}
+				};
 				wrap.Add(MakeLineSegment(color, style, thickness, grow: 1f));
 				return wrap;
 			}
 
-			wrap.Add(MakeLineSegment(color, style, thickness, grow: 1f));
-			wrap.Add(new Label(label) {
-				style = {
-					fontSize = 10, color = SperlichEditorTheme.TextMuted,
-					marginLeft = 8, marginRight = 8, flexShrink = 0,
-					unityFontStyleAndWeight = FontStyle.Bold,
+			if (placement == HLinePlacement.Above) {
+				var wrap = new VisualElement {
+					style = {
+						flexDirection = FlexDirection.Column,
+						marginTop = 8, marginBottom = 6, flexShrink = 0,
+					}
+				};
+
+				Align alignSelf = align switch {
+					HLineAlign.Left => Align.FlexStart,
+					HLineAlign.Right => Align.FlexEnd,
+					_ => Align.Center
+				};
+
+				var lbl = new Label(label) {
+					style = {
+						fontSize = 10,
+						color = SperlichEditorTheme.TextMuted,
+						marginBottom = 3,
+						alignSelf = alignSelf,
+						unityFontStyleAndWeight = FontStyle.Bold,
+						letterSpacing = 0.5f,
+					}
+				};
+				wrap.Add(lbl);
+				wrap.Add(MakeLineSegment(color, style, thickness, grow: 1f));
+				return wrap;
+			} else {
+				var wrap = new VisualElement {
+					style = {
+						flexDirection = FlexDirection.Row, alignItems = Align.Center,
+						marginTop = 7, marginBottom = 7, flexShrink = 0,
+					}
+				};
+
+				var lbl = new Label(label) {
+					style = {
+						fontSize = 10, color = SperlichEditorTheme.TextMuted,
+						marginLeft = 8, marginRight = 8, flexShrink = 0,
+						unityFontStyleAndWeight = FontStyle.Bold,
+					}
+				};
+
+				if (align == HLineAlign.Left) {
+					wrap.Add(MakeLineSegment(color, style, thickness, grow: 0f, fixedWidth: 12f));
+					wrap.Add(lbl);
+					wrap.Add(MakeLineSegment(color, style, thickness, grow: 1f));
+				} else if (align == HLineAlign.Right) {
+					wrap.Add(MakeLineSegment(color, style, thickness, grow: 1f));
+					wrap.Add(lbl);
+					wrap.Add(MakeLineSegment(color, style, thickness, grow: 0f, fixedWidth: 12f));
+				} else {
+					wrap.Add(MakeLineSegment(color, style, thickness, grow: 1f));
+					wrap.Add(lbl);
+					wrap.Add(MakeLineSegment(color, style, thickness, grow: 1f));
 				}
-			});
-			wrap.Add(MakeLineSegment(color, style, thickness, grow: 1f));
-			return wrap;
+				return wrap;
+			}
 		}
 
-		private static VisualElement MakeLineSegment(Color color, LineStyle style, int thickness, float grow) {
-			var seg = new VisualElement { style = { flexGrow = grow, flexShrink = 1, height = Mathf.Max(thickness, style == LineStyle.Solid ? thickness : 2) } };
+		private static VisualElement MakeLineSegment(Color color, LineStyle style, int thickness, float grow, float fixedWidth = 0f) {
+			var seg = new VisualElement {
+				style = {
+					flexGrow = grow,
+					flexShrink = grow > 0f ? 1 : 0,
+					height = Mathf.Max(thickness, style == LineStyle.Solid ? thickness : 2)
+				}
+			};
+			if (fixedWidth > 0f) {
+				seg.style.width = fixedWidth;
+				seg.style.flexGrow = 0;
+			}
 
 			if (style == LineStyle.Solid) {
 				seg.style.height = thickness;

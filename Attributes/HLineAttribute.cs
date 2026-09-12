@@ -8,10 +8,10 @@ namespace Sperlich.EditorKit {
 	/// Can be applied multiple times to stack lines / labels.
 	/// </summary>
 	[Conditional("UNITY_EDITOR")]
-	[AttributeUsage(AttributeTargets.Field, AllowMultiple = true, Inherited = true)]
+	[AttributeUsage(AttributeTargets.Field | AttributeTargets.Property, AllowMultiple = true, Inherited = true)]
 	public sealed class HLineAttribute : Attribute {
 
-		/// <summary>Optional small centered label sitting on the line.</summary>
+		/// <summary>Optional small label sitting on or above the line.</summary>
 		public string Label { get; }
 
 		/// <summary>Line colour as <c>"red"</c> / <c>"#RRGGBB"</c> / <c>"#RRGGBBAA"</c>
@@ -26,10 +26,25 @@ namespace Sperlich.EditorKit {
 		/// <summary>Solid / dashed / dotted.</summary>
 		public LineStyle Style { get; }
 
+		/// <summary>Horizontal text alignment: Left, Center, or Right.</summary>
+		public HLineAlign Align { get; set; } = HLineAlign.Center;
+
+		/// <summary>Label placement: Inline (interrupts line) or Above (sits on top of full line).</summary>
+		public HLinePlacement Placement { get; set; } = HLinePlacement.Inline;
+
 		public HLineAttribute(string label = null, string color = null, LineStyle style = LineStyle.Solid, TintColor tint = TintColor.None) {
 			Label = label;
 			Color = color;
 			Style = style;
+			Tint = tint;
+		}
+
+		public HLineAttribute(string label, HLineAlign align, HLinePlacement placement = HLinePlacement.Inline, LineStyle style = LineStyle.Solid, string color = null, TintColor tint = TintColor.None) {
+			Label = label;
+			Align = align;
+			Placement = placement;
+			Style = style;
+			Color = color;
 			Tint = tint;
 		}
 	}

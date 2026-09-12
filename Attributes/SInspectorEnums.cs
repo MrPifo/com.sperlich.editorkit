@@ -24,6 +24,19 @@ namespace Sperlich.EditorKit {
 		Dotted,
 	}
 
+	/// <summary>Horizontal text alignment for <see cref="HLineAttribute"/> labels.</summary>
+	public enum HLineAlign {
+		Center,
+		Left,
+		Right,
+	}
+
+	/// <summary>Label placement for <see cref="HLineAttribute"/>: inline (interrupting line) or above the line.</summary>
+	public enum HLinePlacement {
+		Inline,
+		Above,
+	}
+
 	/// <summary>
 	/// Curated unit list for <see cref="UnitAttribute"/>. Auto-conversion only runs between units of the
 	/// same dimension (length / mass / time / speed / angle). SI base units per dimension: metre, kilogram,

@@ -81,9 +81,9 @@ namespace Sperlich.EditorKit {
 			public string AccentColorHex;
 			public TintColor AccentColorTint;
 
-			/// <summary>(<c>label</c>, <c>colorHtml</c>, <c>tint</c>, <c>style</c>) tuples for stacked
+			/// <summary>(<c>label</c>, <c>colorHtml</c>, <c>tint</c>, <c>style</c>, <c>align</c>, <c>placement</c>) tuples for stacked
 			/// <c>[HLine]</c>s; <c>null</c> = none.</summary>
-			public List<(string label, string colorHtml, TintColor tint, LineStyle style)> HLines;
+			public List<(string label, string colorHtml, TintColor tint, LineStyle style, HLineAlign align, HLinePlacement placement)> HLines;
 
 			/// <summary>Callback method names from <c>[OnValueChanged]</c>; <c>null</c> = none.</summary>
 			public List<string> OnValueChangedMethods;
@@ -180,6 +180,7 @@ namespace Sperlich.EditorKit {
 			public string ColorHex;
 			public string RowGroup;
 			public BoxAttribute Box;
+			public List<(string label, string colorHtml, TintColor tint, LineStyle style, HLineAlign align, HLinePlacement placement)> HLines;
 		}
 
 		private static readonly Dictionary<Type, SperlichInspectorPlan> Cache = new();
@@ -313,7 +314,7 @@ namespace Sperlich.EditorKit {
 			}
 
 			foreach (HLineAttribute hl in f.GetCustomAttributes<HLineAttribute>(true)) {
-				(meta.HLines ??= new()).Add((hl.Label, hl.Color, hl.Tint, hl.Style));
+				(meta.HLines ??= new()).Add((hl.Label, hl.Color, hl.Tint, hl.Style, hl.Align, hl.Placement));
 			}
 
 			foreach (OnValueChangedAttribute ov in f.GetCustomAttributes<OnValueChangedAttribute>(true)) {
@@ -404,6 +405,11 @@ namespace Sperlich.EditorKit {
 			var tint = p.GetCustomAttribute<TintColorAttribute>();
 			var accent = p.GetCustomAttribute<AccentColorAttribute>();
 
+			List<(string, string, TintColor, LineStyle, HLineAlign, HLinePlacement)> hlines = null;
+			foreach (HLineAttribute hl in p.GetCustomAttributes<HLineAttribute>(true)) {
+				(hlines ??= new()).Add((hl.Label, hl.Color, hl.Tint, hl.Style, hl.Align, hl.Placement));
+			}
+
 			ShowMembers.Add(new ShowMemberMeta {
 				Member = p, IsField = false, Name = p.Name,
 				Label = sp.Label ?? ObjectNames.NicifyVariableName(p.Name),
@@ -414,6 +420,7 @@ namespace Sperlich.EditorKit {
 				ColorHex = sp.ColorHex ?? accent?.ColorHex ?? tint?.Color,
 				RowGroup = row?.Group,
 				Box = box,
+				HLines = hlines,
 			});
 		}
 

@@ -180,9 +180,9 @@ namespace Sperlich.EditorKit {
 			if (meta == null) return;
 			if (!tightHeader && meta.SpaceBefore > 0f) container.Add(new VisualElement { style = { height = meta.SpaceBefore, flexShrink = 0 } });
 			if (meta.HLines != null) {
-				foreach ((string label, string colorHtml, TintColor tint, LineStyle style) in meta.HLines) {
+				foreach ((string label, string colorHtml, TintColor tint, LineStyle style, HLineAlign align, HLinePlacement placement) in meta.HLines) {
 					Color c = SperlichEditorWidgets.ResolveColor(colorHtml, tint) ?? SperlichEditorTheme.BorderStrong;
-					container.Add(SperlichEditorWidgets.CreateSeparatorLine(label, c, style));
+					container.Add(SperlichEditorWidgets.CreateSeparatorLine(label, c, style, align, placement));
 				}
 			}
 			if (!string.IsNullOrEmpty(meta.Header)) container.Add(BuildHeader(meta.Header, tightHeader));
@@ -799,8 +799,8 @@ namespace Sperlich.EditorKit {
 			wrap.style.backgroundColor = SperlichEditorTheme.BgStepBody;
 			wrap.style.marginTop = 2;
 			wrap.style.marginBottom = 2;
-			wrap.style.paddingLeft = 6;
-			wrap.style.paddingRight = 6;
+			wrap.style.paddingLeft = 0;
+			wrap.style.paddingRight = 0;
 			wrap.style.paddingTop = 3;
 			wrap.style.paddingBottom = 4;
 

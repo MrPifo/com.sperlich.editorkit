@@ -4,11 +4,11 @@
  */
 
 .sperlich-inspector {
-    --sperlich-bg-dark: rgb(31, 33, 41);
-    --sperlich-bg-step: rgb(43, 46, 56);
-    --sperlich-bg-panel: rgb(50, 51, 57);
-    --sperlich-border: rgba(255, 255, 255, 0.10);
-    --sperlich-border-strong: rgba(255, 255, 255, 0.16);
+    --sperlich-bg-dark: rgb(36, 36, 36);
+    --sperlich-bg-step: rgb(48, 48, 48);
+    --sperlich-bg-panel: rgb(43, 43, 43);
+    --sperlich-border: rgba(255, 255, 255, 0.08);
+    --sperlich-border-strong: rgba(255, 255, 255, 0.15);
     --sperlich-text: rgb(226, 226, 226);
     --sperlich-text-secondary: rgb(199, 199, 199);
     --sperlich-text-muted: rgb(140, 140, 140);

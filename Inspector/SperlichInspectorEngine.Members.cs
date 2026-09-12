@@ -19,6 +19,7 @@ namespace Sperlich.EditorKit {
 			public string Before;
 			public string RowGroup;
 			public BoxAttribute Box;
+			public List<(string label, string colorHtml, TintColor tint, LineStyle style, HLineAlign align, HLinePlacement placement)> HLines;
 			public Func<VisualElement> Build;
 			public bool Done;
 		}
@@ -56,6 +57,7 @@ namespace Sperlich.EditorKit {
 					Name = captured.Name,
 					RowGroup = captured.RowGroup,
 					Box = captured.Box,
+					HLines = captured.HLines,
 					Build = () => !string.IsNullOrEmpty(captured.RowGroup)
 						? BuildLiveDisplayCell(captured, so, targetResolver)
 						: BuildLiveDisplayRow(captured, so, targetResolver),
@@ -73,6 +75,12 @@ namespace Sperlich.EditorKit {
 				if (pe.Done) continue;
 				bool hit = (before != null && pe.Before == before) || (after != null && pe.After == after);
 				if (!hit) continue;
+				if (pe.HLines != null) {
+					foreach (var hl in pe.HLines) {
+						Color c = SperlichEditorWidgets.ResolveColor(hl.colorHtml, hl.tint) ?? SperlichEditorTheme.BorderStrong;
+						target.Add(SperlichEditorWidgets.CreateSeparatorLine(hl.label, c, hl.style, hl.align, hl.placement));
+					}
+				}
 				VisualElement el = pe.Build();
 				if (el != null) target.Add(el);
 				pe.Done = true;
@@ -89,7 +97,19 @@ namespace Sperlich.EditorKit {
 				if (pe.Done) { i++; continue; }
 
 				if (pe.Box != null) {
+					if (pe.HLines != null) {
+						foreach (var hl in pe.HLines) {
+							Color c = SperlichEditorWidgets.ResolveColor(hl.colorHtml, hl.tint) ?? SperlichEditorTheme.BorderStrong;
+							container.Add(SperlichEditorWidgets.CreateSeparatorLine(hl.label, c, hl.style, hl.align, hl.placement));
+						}
+						pe.HLines = null;
+					}
 					currentTarget = BuildBoxContainer(container, so, pe.Box, pe.Name ?? "box");
+				} else if (pe.HLines != null) {
+					foreach (var hl in pe.HLines) {
+						Color c = SperlichEditorWidgets.ResolveColor(hl.colorHtml, hl.tint) ?? SperlichEditorTheme.BorderStrong;
+						currentTarget.Add(SperlichEditorWidgets.CreateSeparatorLine(hl.label, c, hl.style, hl.align, hl.placement));
+					}
 				}
 
 				if (!string.IsNullOrEmpty(pe.RowGroup)) {
