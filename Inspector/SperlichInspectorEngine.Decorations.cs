@@ -315,6 +315,30 @@ namespace Sperlich.EditorKit {
 				return SperlichEditorWidgets.CreateFlagsDropdown(prop, accent);
 			}
 			string[] labels = prop.enumDisplayNames ?? Array.Empty<string>();
+
+			if (enumType != null && enumType.IsEnum) {
+				string[] names = Enum.GetNames(enumType);
+				Color[] perSegment = null;
+				for (int i = 0; i < names.Length; i++) {
+					var field = enumType.GetField(names[i]);
+					if (field != null) {
+						var ac = field.GetCustomAttribute<AccentColorAttribute>();
+						var tc = field.GetCustomAttribute<TintColorAttribute>();
+						if (ac != null || tc != null) {
+							perSegment ??= new Color[names.Length];
+							Color? c = SperlichEditorWidgets.ResolveColor(ac?.ColorHex ?? tc?.Color, ac?.Tint ?? tc?.Tint ?? TintColor.None);
+							perSegment[i] = c ?? accent;
+						}
+					}
+				}
+				if (perSegment != null) {
+					for (int i = 0; i < perSegment.Length; i++) {
+						if (perSegment[i] == default) perSegment[i] = accent;
+					}
+					return SperlichEditorWidgets.CreateSegmentedControl(prop, labels, perSegment);
+				}
+			}
+
 			return SperlichEditorWidgets.CreateSegmentedControl(prop, labels, accent);
 		}
 
