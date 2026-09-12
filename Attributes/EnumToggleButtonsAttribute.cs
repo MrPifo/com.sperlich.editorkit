@@ -15,6 +15,17 @@ namespace Sperlich.EditorKit {
 		/// <summary>Row label override. <c>null</c> = the field's display name.</summary>
 		public string Label { get; }
 
-		public EnumToggleButtonsAttribute(string label = null) => Label = label;
+		/// <summary>Maximum number of buttons per row before breaking into the next row. &lt;= 0 means all in a single row.</summary>
+		public int ButtonsPerRow { get; }
+
+		public EnumToggleButtonsAttribute(string label = null, int buttonsPerRow = 0) {
+			Label = label;
+			ButtonsPerRow = buttonsPerRow;
+		}
+
+		public EnumToggleButtonsAttribute(int buttonsPerRow) {
+			Label = null;
+			ButtonsPerRow = buttonsPerRow;
+		}
 	}
 }

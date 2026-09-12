@@ -293,17 +293,17 @@ namespace Sperlich.EditorKit {
 		}
 
 		/// <summary>Anklickbare Segmented-Control für ein Enum-SerializedProperty — flache umrandete Segmente statt Dropdown, aktives Segment mit Akzent-Rahmen (Sperlich-Editor-Konvention).</summary>
-		public static VisualElement CreateSegmentedControl(SerializedProperty enumProp, string[] labels, Color accent, Action onChanged = null) =>
-			CreateSegmentedControl(enumProp, labels, _ => accent, onChanged);
+		public static VisualElement CreateSegmentedControl(SerializedProperty enumProp, string[] labels, Color accent, Action onChanged = null, int buttonsPerRow = 0) =>
+			CreateSegmentedControl(enumProp, labels, _ => accent, onChanged, buttonsPerRow);
 
-		/// <summary>Same as <see cref="CreateSegmentedControl(SerializedProperty,string[],Color,Action)"/>, but
+		/// <summary>Same as <see cref="CreateSegmentedControl(SerializedProperty,string[],Color,Action,int)"/>, but
 		/// each segment gets its own colour instead of one shared accent (e.g. a Sequential/Parallel toggle
 		/// where each state has a distinct meaning-colour).</summary>
-		public static VisualElement CreateSegmentedControl(SerializedProperty enumProp, string[] labels, Color[] accentPerSegment, Action onChanged = null) =>
-			CreateSegmentedControl(enumProp, labels, i => i >= 0 && i < accentPerSegment.Length ? accentPerSegment[i] : SperlichEditorTheme.ButtonAccent, onChanged);
+		public static VisualElement CreateSegmentedControl(SerializedProperty enumProp, string[] labels, Color[] accentPerSegment, Action onChanged = null, int buttonsPerRow = 0) =>
+			CreateSegmentedControl(enumProp, labels, i => i >= 0 && i < accentPerSegment.Length ? accentPerSegment[i] : SperlichEditorTheme.ButtonAccent, onChanged, buttonsPerRow);
 
-		private static VisualElement CreateSegmentedControl(SerializedProperty enumProp, string[] labels, Func<int, Color> accentFor, Action onChanged) {
-			var track = new VisualElement { style = { flexDirection = UnityEngine.UIElements.FlexDirection.Row, marginBottom = 6 } };
+		private static VisualElement CreateSegmentedControl(SerializedProperty enumProp, string[] labels, Func<int, Color> accentFor, Action onChanged, int buttonsPerRow = 0) {
+			VisualElement rootElement;
 			var segments = new List<VisualElement>();
 			var hovered = new bool[labels.Length];
 
@@ -326,8 +326,7 @@ namespace Sperlich.EditorKit {
 				}
 			}
 
-			for (int i = 0; i < labels.Length; i++) {
-				int index = i;
+			VisualElement CreateSegment(int index, float marginRight) {
 				var segment = new VisualElement { pickingMode = PickingMode.Position };
 				segment.style.flexGrow = 1;
 				segment.style.borderTopWidth = 1;
@@ -335,13 +334,13 @@ namespace Sperlich.EditorKit {
 				segment.style.borderLeftWidth = 1;
 				segment.style.borderRightWidth = 1;
 				SetRadius(segment, 3);
-				segment.style.marginRight = i < labels.Length - 1 ? 3 : 0;
+				segment.style.marginRight = marginRight;
 				segment.style.paddingTop = 4;
 				segment.style.paddingBottom = 4;
 				ApplyColorTransition(segment, 100, "background-color", "border-color");
 				SetHoverCursor(segment, MouseCursor.Link);
 
-				var label = new Label(labels[i]) { pickingMode = PickingMode.Ignore };
+				var label = new Label(labels[index]) { pickingMode = PickingMode.Ignore };
 				label.style.fontSize = 10;
 				label.style.unityTextAlign = TextAnchor.MiddleCenter;
 				ApplyColorTransition(label, 100, "color");
@@ -358,15 +357,47 @@ namespace Sperlich.EditorKit {
 				segment.RegisterCallback<MouseEnterEvent>(_ => { hovered[index] = true; Refresh(); });
 				segment.RegisterCallback<MouseLeaveEvent>(_ => { hovered[index] = false; Refresh(); });
 
-				segments.Add(segment);
-				track.Add(segment);
+				return segment;
+			}
+
+			bool isMultiRow = buttonsPerRow > 0 && labels.Length > buttonsPerRow;
+			if (!isMultiRow) {
+				var track = new VisualElement { style = { flexDirection = UnityEngine.UIElements.FlexDirection.Row, marginBottom = 6 } };
+				rootElement = track;
+
+				for (int i = 0; i < labels.Length; i++) {
+					var segment = CreateSegment(i, i < labels.Length - 1 ? 3 : 0);
+					segments.Add(segment);
+					track.Add(segment);
+				}
+			} else {
+				var column = new VisualElement { style = { flexDirection = UnityEngine.UIElements.FlexDirection.Column, marginBottom = 6 } };
+				rootElement = column;
+
+				int rowCount = Mathf.CeilToInt((float)labels.Length / buttonsPerRow);
+				for (int r = 0; r < rowCount; r++) {
+					int start = r * buttonsPerRow;
+					int end = Mathf.Min(start + buttonsPerRow, labels.Length);
+					var rowTrack = new VisualElement {
+						style = {
+							flexDirection = UnityEngine.UIElements.FlexDirection.Row,
+							marginBottom = r < rowCount - 1 ? 3 : 0
+						}
+					};
+					for (int i = start; i < end; i++) {
+						var segment = CreateSegment(i, i < end - 1 ? 3 : 0);
+						segments.Add(segment);
+						rowTrack.Add(segment);
+					}
+					column.Add(rowTrack);
+				}
 			}
 
 			// Re-read on any external change (Revert / Undo / OnValueChanged / multi-select) — without this the
 			// segments only restyled on click or hover.
-			track.TrackPropertyValue(enumProp, _ => Refresh());
+			rootElement.TrackPropertyValue(enumProp, _ => Refresh());
 			Refresh();
-			return track;
+			return rootElement;
 		}
 
 		/// <summary>Selbstgezeichneter, per Drag bedienbarer Fortschrittsbalken für ein Float-SerializedProperty — ersetzt Unitys nativen Slider (dessen interne Bauteile sich zwischen Unity-Versionen ändern) durch ein voll kontrolliertes, im Sperlich-Stil eingefärbtes Element. Ruf die zurückgegebene refresh-Action nach externen Wertänderungen auf.</summary>

@@ -43,6 +43,7 @@ namespace Sperlich.EditorKit {
 
 			public bool EnumToggleButtons;
 			public string EnumToggleLabel;
+			public int EnumToggleButtonsPerRow;
 
 			/// <summary>Literal suffix text, or <c>$member</c> for a polled string member. <c>null</c> = none.</summary>
 			public string SuffixText;
@@ -265,6 +266,7 @@ namespace Sperlich.EditorKit {
 			if (f.GetCustomAttribute<EnumToggleButtonsAttribute>() is { } etb) {
 				meta.EnumToggleButtons = true;
 				meta.EnumToggleLabel = etb.Label;
+				meta.EnumToggleButtonsPerRow = etb.ButtonsPerRow;
 			}
 
 			if (f.GetCustomAttribute<SuffixLabelAttribute>() is { } sfx) {

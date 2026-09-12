@@ -337,11 +337,11 @@ namespace Sperlich.EditorKit {
 					for (int i = 0; i < perSegment.Length; i++) {
 						if (perSegment[i] == default) perSegment[i] = accent;
 					}
-					return SperlichEditorWidgets.CreateSegmentedControl(prop, labels, perSegment);
+					return SperlichEditorWidgets.CreateSegmentedControl(prop, labels, perSegment, buttonsPerRow: meta?.EnumToggleButtonsPerRow ?? 0);
 				}
 			}
 
-			return SperlichEditorWidgets.CreateSegmentedControl(prop, labels, accent);
+			return SperlichEditorWidgets.CreateSegmentedControl(prop, labels, accent, buttonsPerRow: meta?.EnumToggleButtonsPerRow ?? 0);
 		}
 
 		/// <summary>For a <c>[Flags]</c> enum: an array where index <c>i</c> is the display name of the member
