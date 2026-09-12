@@ -344,7 +344,7 @@ namespace Sperlich.EditorKit {
 			Color fill = SperlichEditorWidgets.ResolveColor(meta.PbColor, meta.PbTint) ?? Accent;
 
 			float Read() => prop.propertyType == SerializedPropertyType.Integer ? prop.intValue : prop.floatValue;
-			var (rootEl, setValue, setRange) = SperlichEditorWidgets.CreateProgressBar(
+			var (rootEl, setValue, setRange, _) = SperlichEditorWidgets.CreateProgressBar(
 				Read(), meta.PbMin, meta.PbMax, fill, meta.PbHeight <= 0 ? 18 : meta.PbHeight, meta.PbSegmented, meta.PbShowValue, meta.PbPercent);
 
 			rootEl.TrackPropertyValue(prop, p => setValue(p.propertyType == SerializedPropertyType.Integer ? p.intValue : p.floatValue));

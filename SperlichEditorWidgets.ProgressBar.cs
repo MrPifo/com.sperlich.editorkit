@@ -7,16 +7,22 @@ namespace Sperlich.EditorKit {
 	public static partial class SperlichEditorWidgets {
 
 		/// <summary>Read-only progress bar for <c>[ProgressBar]</c>: a rounded dark track with an accent fill,
-		/// an optional <c>value / max</c> overlay and optional notch marks. Returns the element plus two
-		/// setters — <c>setValue</c> (event-driven from the field) and <c>setRange</c> (for a dynamic
-		/// min/max member).</summary>
-		public static (VisualElement root, Action<float> setValue, Action<float, float> setRange) CreateProgressBar(
+		/// an optional <c>value / max</c> overlay and optional notch marks. Returns the element plus three
+		/// setters — <c>setValue</c> (event-driven from the field), <c>setRange</c> (for a dynamic min/max
+		/// member) and <c>setDashed</c> (switches the fill to a diagonal-striped look, e.g. to mark a delay/wait
+		/// phase as visually distinct from a normal fill).</summary>
+		public static (VisualElement root, Action<float> setValue, Action<float, float> setRange, Action<bool> setDashed) CreateProgressBar(
 			float value, float min, float max, Color fill, int height, bool segmented, bool showValue, bool percent = false) {
 
-			int h = Mathf.Max(6, height);
+			int h = Mathf.Max(2, height);
+			// Corner radius must never exceed half the track's own height, or UIToolkit's rounding can
+			// swallow the fill/track color entirely on very thin bars (looked like a colorless flash instead
+			// of a growing bar once height was lowered below the old fixed radius of 3/2).
+			int trackRadius = Mathf.Clamp(h / 2, 1, 3);
+			int fillRadius = Mathf.Clamp(h / 2, 1, 2);
 			Color overflow = new Color(0.85f, 0.35f, 0.25f);
 
-			var track = CreateBox(3, SperlichEditorTheme.BorderSubtle);
+			var track = CreateBox(trackRadius, SperlichEditorTheme.BorderSubtle);
 			track.style.height = h;
 			track.style.flexGrow = 1;
 			track.style.backgroundColor = SperlichEditorTheme.BgDark;
@@ -29,14 +35,31 @@ namespace Sperlich.EditorKit {
 					backgroundColor = fill,
 				}
 			};
-			SetRadius(fillEl, 2);
+			SetRadius(fillEl, fillRadius);
 			track.Add(fillEl);
 
-			// subtle vertical gradient on the fill for a bit of depth
+			bool dashed = false;
+
+			// Normal mode: a subtle vertical gradient on the fill for a bit of depth.
+			// Dashed mode (delay/wait phases): diagonal stripes instead, so it reads as "not a real step
+			// playing" at a glance rather than a normal solid progress fill.
 			fillEl.generateVisualContent += ctx => {
 				Rect r = ctx.visualElement.contentRect;
 				if (r.width <= 0f || r.height <= 0f) return;
 				var p = ctx.painter2D;
+				if (dashed) {
+					p.strokeColor = new Color(0f, 0f, 0f, 0.35f);
+					p.lineWidth = Mathf.Max(1f, r.height * 0.35f);
+					float stripeSpacing = Mathf.Max(4f, r.height);
+					float diag = r.width + r.height;
+					p.BeginPath();
+					for (float x = -r.height; x < diag; x += stripeSpacing) {
+						p.MoveTo(new Vector2(x, r.height));
+						p.LineTo(new Vector2(x + r.height, 0));
+					}
+					p.Stroke();
+					return;
+				}
 				p.fillColor = new Color(0f, 0f, 0f, 0.12f);
 				p.BeginPath();
 				p.MoveTo(new Vector2(0, r.height * 0.55f));
@@ -82,12 +105,14 @@ namespace Sperlich.EditorKit {
 
 			float curMin = min, curMax = max, curVal = value;
 
+			Color dashedFill = Color.Lerp(fill, new Color(0.6f, 0.6f, 0.6f), 0.5f);
+
 			void Redraw() {
 				float span = curMax - curMin;
 				float t = span > 0.0001f ? Mathf.Clamp01((curVal - curMin) / span) : 0f;
 				fillEl.style.width = Length.Percent(t * 100f);
 				bool over = curVal > curMax + 0.0001f;
-				fillEl.style.backgroundColor = over ? overflow : fill;
+				fillEl.style.backgroundColor = over ? overflow : (dashed ? dashedFill : fill);
 				if (overlayLabel != null) {
 					float rawT = span > 0.0001f ? (curVal - curMin) / span : 0f;
 					overlayLabel.text = percent
@@ -100,8 +125,9 @@ namespace Sperlich.EditorKit {
 
 			void SetValue(float v) { curVal = v; Redraw(); }
 			void SetRange(float lo, float hi) { curMin = lo; curMax = hi; Redraw(); }
+			void SetDashed(bool d) { if (dashed == d) return; dashed = d; Redraw(); fillEl.MarkDirtyRepaint(); }
 
-			return (track, SetValue, SetRange);
+			return (track, SetValue, SetRange, SetDashed);
 		}
 
 		private static string FormatPbValue(float v) {

@@ -897,6 +897,22 @@ namespace Sperlich.EditorKit {
 				popup.style.left = targetLeft;
 				popup.style.top = topLeft.y + 2;
 
+				// Vertical clamping: a long list (e.g. many categories/leaves) can run past the bottom of the
+				// window when the field sits low in a full Inspector. Once real layout is known, flip the popup
+				// to open upward from the field instead of letting it get clipped off-window.
+				EventCallback<GeometryChangedEvent> clampVertical = null;
+				clampVertical = _ => {
+					popup.UnregisterCallback(clampVertical);
+					float panelHeight = panelRoot.contentRect.height;
+					if (panelHeight <= 0f) return;
+					float bottomEdge = topLeft.y + 2 + popup.layout.height;
+					if (bottomEdge <= panelHeight - margin) return;
+					Vector2 aboveTopLeft = panelRoot.WorldToLocal(new Vector2(fieldBound.xMin, fieldBound.yMin));
+					float openedUpTop = aboveTopLeft.y - popup.layout.height - 2;
+					popup.style.top = openedUpTop >= margin ? openedUpTop : Mathf.Max(margin, panelHeight - popup.layout.height - margin);
+				};
+				popup.RegisterCallback(clampVertical);
+
 				popup.style.opacity = 0f;
 				popup.experimental.animation.Start(0f, 1f, 120, (e, v) => {
 					e.style.opacity = v;
