@@ -45,6 +45,10 @@ namespace Sperlich.EditorKit {
 			public string EnumToggleLabel;
 			public int EnumToggleButtonsPerRow;
 
+			public string CustomLabel;
+			public bool ShowInPlayMode;
+			public bool ShowInEditMode;
+
 			/// <summary>Literal suffix text, or <c>$member</c> for a polled string member. <c>null</c> = none.</summary>
 			public string SuffixText;
 			public bool SuffixOverlay;
@@ -156,6 +160,8 @@ namespace Sperlich.EditorKit {
 			public string Before;
 			public string Icon;
 			public int MetadataToken;
+			public bool ShowInPlayMode;
+			public bool ShowInEditMode;
 		}
 
 		/// <summary>A set of parameterless methods sharing a <c>[ButtonGroup]</c> key — one segmented bar.</summary>
@@ -164,6 +170,8 @@ namespace Sperlich.EditorKit {
 			public readonly List<(MethodInfo method, string label, string icon)> Items = new();
 			/// <summary>Declaration token of the first method — decides where the bar is placed.</summary>
 			public int MetadataToken;
+			public bool ShowInPlayMode;
+			public bool ShowInEditMode;
 		}
 
 		/// <summary>A read-only live display of a property (<c>[ShowProperty]</c>) or non-serialized field
@@ -182,6 +190,8 @@ namespace Sperlich.EditorKit {
 			public string RowGroup;
 			public BoxAttribute Box;
 			public List<(string label, string colorHtml, TintColor tint, LineStyle style, HLineAlign align, HLinePlacement placement)> HLines;
+			public bool ShowInPlayMode;
+			public bool ShowInEditMode;
 		}
 
 		private static readonly Dictionary<Type, SperlichInspectorPlan> Cache = new();
@@ -262,6 +272,10 @@ namespace Sperlich.EditorKit {
 			}
 
 			if (f.GetCustomAttribute<SReadOnlyAttribute>() != null) meta.ReadOnly = true;
+
+			if (f.GetCustomAttribute<LabelAttribute>() is { } lbl) meta.CustomLabel = lbl.Text;
+			if (f.GetCustomAttribute<ShowInPlayModeAttribute>() != null) meta.ShowInPlayMode = true;
+			if (f.GetCustomAttribute<ShowInEditModeAttribute>() != null) meta.ShowInEditMode = true;
 
 			if (f.GetCustomAttribute<EnumToggleButtonsAttribute>() is { } etb) {
 				meta.EnumToggleButtons = true;
@@ -391,10 +405,13 @@ namespace Sperlich.EditorKit {
 		private void CollectShowField(FieldInfo f) {
 			var sf = f.GetCustomAttribute<ShowFieldAttribute>();
 			if (sf == null) return;
+			var lbl = f.GetCustomAttribute<LabelAttribute>();
 			ShowMembers.Add(new ShowMemberMeta {
 				Member = f, IsField = true, Name = f.Name,
-				Label = sf.Label ?? ObjectNames.NicifyVariableName(f.Name),
+				Label = sf.Label ?? lbl?.Text ?? ObjectNames.NicifyVariableName(f.Name),
 				PollMs = Mathf.Max(50, sf.PollMs), MetadataToken = f.MetadataToken,
+				ShowInPlayMode = f.GetCustomAttribute<ShowInPlayModeAttribute>() != null,
+				ShowInEditMode = f.GetCustomAttribute<ShowInEditModeAttribute>() != null,
 			});
 		}
 
@@ -406,6 +423,7 @@ namespace Sperlich.EditorKit {
 			var box = p.GetCustomAttribute<BoxAttribute>();
 			var tint = p.GetCustomAttribute<TintColorAttribute>();
 			var accent = p.GetCustomAttribute<AccentColorAttribute>();
+			var lbl = p.GetCustomAttribute<LabelAttribute>();
 
 			List<(string, string, TintColor, LineStyle, HLineAlign, HLinePlacement)> hlines = null;
 			foreach (HLineAttribute hl in p.GetCustomAttributes<HLineAttribute>(true)) {
@@ -414,7 +432,7 @@ namespace Sperlich.EditorKit {
 
 			ShowMembers.Add(new ShowMemberMeta {
 				Member = p, IsField = false, Name = p.Name,
-				Label = sp.Label ?? ObjectNames.NicifyVariableName(p.Name),
+				Label = sp.Label ?? lbl?.Text ?? ObjectNames.NicifyVariableName(p.Name),
 				PollMs = Mathf.Max(50, sp.PollMs), MetadataToken = p.MetadataToken,
 				Suffix = sp.Suffix,
 				Badge = sp.Badge,
@@ -423,6 +441,8 @@ namespace Sperlich.EditorKit {
 				RowGroup = row?.Group,
 				Box = box,
 				HLines = hlines,
+				ShowInPlayMode = p.GetCustomAttribute<ShowInPlayModeAttribute>() != null,
+				ShowInEditMode = p.GetCustomAttribute<ShowInEditModeAttribute>() != null,
 			});
 		}
 
@@ -443,13 +463,20 @@ namespace Sperlich.EditorKit {
 					Size = sb.Size, Height = sb.Height, Anchor = sb.Anchor,
 					After = sb.After, Before = sb.Before, Icon = sb.Icon,
 					MetadataToken = m.MetadataToken,
+					ShowInPlayMode = m.GetCustomAttribute<ShowInPlayModeAttribute>() != null,
+					ShowInEditMode = m.GetCustomAttribute<ShowInEditModeAttribute>() != null,
 				});
 			}
 
 			if (bg != null) {
 				ButtonGroupMeta grp = ButtonGroups.Find(g => g.Group == bg.Group);
 				if (grp == null) {
-					grp = new ButtonGroupMeta { Group = bg.Group, MetadataToken = m.MetadataToken };
+					grp = new ButtonGroupMeta {
+						Group = bg.Group,
+						MetadataToken = m.MetadataToken,
+						ShowInPlayMode = m.GetCustomAttribute<ShowInPlayModeAttribute>() != null,
+						ShowInEditMode = m.GetCustomAttribute<ShowInEditModeAttribute>() != null,
+					};
 					ButtonGroups.Add(grp);
 				}
 				grp.Items.Add((m, bg.Label ?? ObjectNames.NicifyVariableName(m.Name), bg.Icon));

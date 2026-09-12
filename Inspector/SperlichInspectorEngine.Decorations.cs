@@ -222,22 +222,41 @@ namespace Sperlich.EditorKit {
 			Debug.LogWarning($"[SInspector] {target.GetType().Name}: [OnValueChanged] method '{name}' not found (expected (), (T) or (T, T)).");
 		}
 
-		// ── [ShowIf] / [HideIf] ────────────────────────────────────────────────────
+		// ── [ShowIf] / [HideIf] / [ShowInPlayMode] / [ShowInEditMode] ────────────
 
-		/// <summary>Toggles <paramref name="element"/>'s visibility from a condition on another member.
+		/// <summary>Toggles <paramref name="element"/>'s visibility from a condition on another member and/or play-mode state.
 		/// Event-driven when the driver is a serialized field, polled (~200 ms) otherwise.</summary>
-		private static void ApplyVisibilityCondition(VisualElement element, SperlichInspectorPlan.MemberMeta.VisCondition cond, SerializedObject so) {
-			SerializedProperty driver = so.FindProperty(cond.Member);
+		private static void ApplyVisibilityCondition(VisualElement element, SperlichInspectorPlan.MemberMeta.VisCondition cond, SerializedObject so, bool playModeOnly = false, bool editModeOnly = false) {
+			SerializedProperty driver = cond != null ? so.FindProperty(cond.Member) : null;
 
 			void Update() {
-				bool match = EvaluateCondition(cond, driver, so);
-				bool visible = cond.Hide ? !match : match;
-				element.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+				bool modeOk = true;
+				if (playModeOnly) modeOk = EditorApplication.isPlaying;
+				else if (editModeOnly) modeOk = !EditorApplication.isPlaying;
+
+				if (!modeOk) {
+					element.style.display = DisplayStyle.None;
+					return;
+				}
+
+				if (cond != null) {
+					bool match = EvaluateCondition(cond, driver, so);
+					bool visible = cond.Hide ? !match : match;
+					element.style.display = visible ? DisplayStyle.Flex : DisplayStyle.None;
+				} else {
+					element.style.display = DisplayStyle.Flex;
+				}
 			}
 
 			Update();
 			if (driver != null) element.TrackPropertyValue(driver, _ => Update());
-			else element.schedule.Execute(Update).Every(200);
+			else if (cond != null) element.schedule.Execute(Update).Every(200);
+
+			if (playModeOnly || editModeOnly) {
+				Action<PlayModeStateChange> onPlayModeChanged = _ => Update();
+				EditorApplication.playModeStateChanged += onPlayModeChanged;
+				element.RegisterCallback<DetachFromPanelEvent>(_ => EditorApplication.playModeStateChanged -= onPlayModeChanged);
+			}
 		}
 
 		private static bool EvaluateCondition(SperlichInspectorPlan.MemberMeta.VisCondition cond, SerializedProperty driver, SerializedObject so) {

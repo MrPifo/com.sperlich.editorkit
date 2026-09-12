@@ -135,9 +135,12 @@ namespace Sperlich.EditorKit {
 			Member m = members[i];
 			string groupKey = m.Meta?.RowGroup;
 
-			// [ShowIf] / [HideIf]: route the member's decorators + row into a wrapper we can toggle as a unit.
+			// [ShowIf] / [HideIf] / [ShowInPlayMode] / [ShowInEditMode]: route the member's decorators + row into a wrapper we can toggle as a unit.
 			SperlichInspectorPlan.MemberMeta.VisCondition cond = m.Meta?.Visibility;
-			VisualElement sink = cond != null ? new VisualElement { style = { flexShrink = 0 } } : parent;
+			bool playModeOnly = m.Meta?.ShowInPlayMode ?? false;
+			bool editModeOnly = m.Meta?.ShowInEditMode ?? false;
+			bool hasVisibilityLogic = cond != null || playModeOnly || editModeOnly;
+			VisualElement sink = hasVisibilityLogic ? new VisualElement { style = { flexShrink = 0 } } : parent;
 			int next;
 
 			// [SRow] on an inline-able scalar -> collect the adjacent same-key run and lay it out horizontally.
@@ -160,8 +163,8 @@ namespace Sperlich.EditorKit {
 				next = i + 1;
 			}
 
-			if (cond != null) {
-				ApplyVisibilityCondition(sink, cond, so);
+			if (hasVisibilityLogic) {
+				ApplyVisibilityCondition(sink, cond, so, playModeOnly, editModeOnly);
 				parent.Add(sink);
 			}
 			return next;
@@ -241,7 +244,7 @@ namespace Sperlich.EditorKit {
 				style = { flexGrow = 1, flexShrink = 1, flexBasis = 0, minWidth = 58, marginRight = 6, marginBottom = 2 }
 			};
 
-			var caption = new Label(m.Prop.displayName) {
+			var caption = new Label(m.Meta?.CustomLabel ?? m.Prop.displayName) {
 				tooltip = m.Meta?.Tooltip,
 				style = {
 					fontSize = 10, color = SperlichEditorTheme.TextMuted, marginBottom = 1,
@@ -294,39 +297,40 @@ namespace Sperlich.EditorKit {
 
 		private static VisualElement BuildRow(SperlichFieldColumn col, SerializedProperty prop, SperlichInspectorPlan.MemberMeta meta) {
 			Type declaredType = meta?.Field?.FieldType;
+			string label = meta?.CustomLabel ?? prop.displayName;
 
 			// [EnumToggleButtons] -> segmented (plain) / toggle bar ([Flags]). Before the generic enum branch.
 			if (meta != null && meta.EnumToggleButtons && prop.propertyType == SerializedPropertyType.Enum) {
 				VisualElement toggles = BuildEnumToggleButtons(prop, meta);
-				return OverrideRow(col.Row(meta.EnumToggleLabel ?? prop.displayName, toggles), prop);
+				return OverrideRow(col.Row(meta.EnumToggleLabel ?? label, toggles), prop);
 			}
 
 			// [ProgressBar] -> read-only fill bar tracking the value.
 			if (meta != null && meta.HasProgressBar
 			    && (prop.propertyType == SerializedPropertyType.Integer || prop.propertyType == SerializedPropertyType.Float)) {
-				return OverrideRow(col.Row(prop.displayName, BuildProgressBarControl(prop, meta)), prop);
+				return OverrideRow(col.Row(label, BuildProgressBarControl(prop, meta)), prop);
 			}
 
 			// [Percent] -> editable 0-100% field mapped onto the field's own [min,max].
 			if (meta != null && meta.HasPercent && prop.propertyType == SerializedPropertyType.Float) {
-				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreatePercentField(prop, meta.PercentMin, meta.PercentMax, ResolveAccent(meta))), prop);
+				return OverrideRow(col.Row(label, SperlichEditorWidgets.CreatePercentField(prop, meta.PercentMin, meta.PercentMax, ResolveAccent(meta))), prop);
 			}
 
 			// [Knob] -> rotary dial (custom range, or a KnobRange angle preset).
 			if (meta != null && meta.HasKnob
 			    && (prop.propertyType == SerializedPropertyType.Integer || prop.propertyType == SerializedPropertyType.Float)) {
-				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateKnobField(prop, meta.KnobMin, meta.KnobMax, meta.KnobDiameter, ResolveAccent(meta))), prop);
+				return OverrideRow(col.Row(label, SperlichEditorWidgets.CreateKnobField(prop, meta.KnobMin, meta.KnobMax, meta.KnobDiameter, ResolveAccent(meta))), prop);
 			}
 
 			// [Stepper] -> [-][value][+].
 			if (meta != null && meta.HasStepper
 			    && (prop.propertyType == SerializedPropertyType.Integer || prop.propertyType == SerializedPropertyType.Float)) {
-				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateStepperField(prop, meta.StepperStep, meta.StepperMin, meta.StepperMax, Accent)), prop);
+				return OverrideRow(col.Row(label, SperlichEditorWidgets.CreateStepperField(prop, meta.StepperStep, meta.StepperMin, meta.StepperMax, Accent)), prop);
 			}
 
 			// [Expandable] -> object field with the assigned asset's own inspector foldable inline below it.
 			if (meta != null && meta.IsExpandable && prop.propertyType == SerializedPropertyType.ObjectReference) {
-				return OverrideRow(SperlichEditorWidgets.CreateExpandableField(prop, meta.Field?.FieldType, meta.ExpandableDefaultOpen, prop.displayName, Accent), prop);
+				return OverrideRow(SperlichEditorWidgets.CreateExpandableField(prop, meta.Field?.FieldType, meta.ExpandableDefaultOpen, label, Accent), prop);
 			}
 
 			// [Scene] -> Build-Settings scene dropdown (string name / int build index).
@@ -334,7 +338,7 @@ namespace Sperlich.EditorKit {
 			    && (prop.propertyType == SerializedPropertyType.String || prop.propertyType == SerializedPropertyType.Integer)) {
 				bool intMode = prop.propertyType == SerializedPropertyType.Integer;
 				VisualElement sd = SperlichEditorWidgets.CreateSceneDropdown(prop, intMode, meta.SceneUseFullPath, Accent);
-				return OverrideRow(col.Row(prop.displayName, sd), prop);
+				return OverrideRow(col.Row(label, sd), prop);
 			}
 
 			// Single [SerializeReference] field -> native, explicitly-bound PropertyField (only it renders the
@@ -347,7 +351,7 @@ namespace Sperlich.EditorKit {
 			// [SerializeReference] list -> Sperlich collection card; each element is a bound PropertyField
 			// (via CompactControl) so it keeps the type picker AND gets a per-element override bar / menu.
 			if (prop.isArray && meta != null && meta.IsSerializeReference) {
-				return OverrideRow(BuildArrayBackedList(prop, prop, prop.displayName, warnDuplicates: false,
+				return OverrideRow(BuildArrayBackedList(prop, prop, label, warnDuplicates: false,
 					elemType: declaredType != null ? SperlichInspectorPlan.ElementType(declaredType) : null,
 					polymorphic: true, accent: ResolveAccent(meta)), prop);
 			}
@@ -357,14 +361,14 @@ namespace Sperlich.EditorKit {
 			if (declaredType != null && declaredType.IsGenericType) {
 				Type gd = declaredType.GetGenericTypeDefinition();
 				if (gd == typeof(SDictionary<,>)) return OverrideRow(BuildDictionaryRow(prop, ResolveAccent(meta)), prop);
-				if (gd == typeof(SHashSet<>)) return OverrideRow(BuildArrayBackedList(prop.FindPropertyRelative("_items"), prop, prop.displayName, warnDuplicates: true, elemType: ElemArg(declaredType, 0), addText: "+ Add", emptyText: "Empty set", accent: ResolveAccent(meta)), prop);
+				if (gd == typeof(SHashSet<>)) return OverrideRow(BuildArrayBackedList(prop.FindPropertyRelative("_items"), prop, label, warnDuplicates: true, elemType: ElemArg(declaredType, 0), addText: "+ Add", emptyText: "Empty set", accent: ResolveAccent(meta)), prop);
 			}
 
 			// Arrays / Lists (element type without its own drawer) -> Sperlich compact-row collection editor.
 			bool isCollection = prop.isArray && prop.propertyType != SerializedPropertyType.String;
 			bool elementHasDrawer = meta != null && meta.ElementTypeHasDrawer;
 			if (isCollection && !elementHasDrawer) {
-				return OverrideRow(BuildArrayBackedList(prop, prop, prop.displayName, warnDuplicates: false,
+				return OverrideRow(BuildArrayBackedList(prop, prop, label, warnDuplicates: false,
 					elemType: declaredType != null ? SperlichInspectorPlan.ElementType(declaredType) : null,
 					accent: ResolveAccent(meta)), prop);
 			}
@@ -386,14 +390,14 @@ namespace Sperlich.EditorKit {
 			// (its child rows still get their own per-field bar + Apply/Revert; the outer one bails when a
 			// right-click lands inside a child scope).
 			if (prop.propertyType == SerializedPropertyType.Generic && prop.hasVisibleChildren) {
-				return OverrideRow(BuildNestedFoldout(prop), prop);
+				return OverrideRow(BuildNestedFoldout(prop, label), prop);
 			}
 
 			// Bool -> pill toggle (mixed-value aware). Not a bound BaseField, so it needs the manual bar.
 			if (prop.propertyType == SerializedPropertyType.Boolean) {
 				Color? boolAccent = SperlichEditorWidgets.ResolveColor(meta?.AccentColorHex, meta?.AccentColorTint ?? TintColor.None);
 				var toggle = new SperlichToggleField(prop, boolAccent);
-				VisualElement boolRow = col.Row(prop.displayName, toggle);
+				VisualElement boolRow = col.Row(label, toggle);
 				toggle.style.flexGrow = 0; // col.Row stretches controls; keep the toggle sized to its content
 				return OverrideRow(boolRow, prop);
 			}
@@ -403,12 +407,12 @@ namespace Sperlich.EditorKit {
 				VisualElement dd = IsFlags(meta)
 					? SperlichEditorWidgets.CreateFlagsDropdown(prop, ResolveAccent(meta))
 					: SperlichEditorWidgets.CreateEnumDropdown(prop, ResolveAccent(meta), null, meta?.Field?.FieldType);
-				return OverrideRow(col.Row(prop.displayName, dd), prop);
+				return OverrideRow(col.Row(label, dd), prop);
 			}
 
 			// LayerMask -> Sperlich multi-select dropdown (Unity's own field is the odd one out otherwise).
 			if (prop.propertyType == SerializedPropertyType.LayerMask) {
-				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateLayerMaskDropdown(prop, ResolveAccent(meta))), prop);
+				return OverrideRow(col.Row(label, SperlichEditorWidgets.CreateLayerMaskDropdown(prop, ResolveAccent(meta))), prop);
 			}
 
 			// Vector2 / Vector2Int with [SMinMax] -> dual-handle "from–to" range slider.
@@ -416,7 +420,7 @@ namespace Sperlich.EditorKit {
 			    && (prop.propertyType == SerializedPropertyType.Vector2 || prop.propertyType == SerializedPropertyType.Vector2Int)) {
 				bool intVec = prop.propertyType == SerializedPropertyType.Vector2Int;
 				VisualElement mm = SperlichEditorWidgets.CreateMinMaxSlider(prop, meta.MinMaxLow, meta.MinMaxHigh, intVec, Accent);
-				return OverrideRow(col.Row(prop.displayName, mm), prop);
+				return OverrideRow(col.Row(label, mm), prop);
 			}
 
 			// Vector2/3/4 (+ Int) -> one inline row of compact drag fields. Unity's PropertyField collapses
@@ -424,7 +428,7 @@ namespace Sperlich.EditorKit {
 			if (TryVectorComponents(prop, out string[] caps, out SerializedProperty[] parts)) {
 				var cluster = SperlichEditorWidgets.CreateFieldCluster(46,
 					BuildVectorCells(caps, parts));
-				return OverrideRow(col.Row(prop.displayName, cluster), prop);
+				return OverrideRow(col.Row(label, cluster), prop);
 			}
 
 			// Object reference -> bound ObjectField + a grey "×" clear button on the right.
@@ -432,7 +436,7 @@ namespace Sperlich.EditorKit {
 				Type objType = meta?.Field?.FieldType;
 				bool sceneOk = prop.serializedObject.targetObject == null
 					|| !EditorUtility.IsPersistent(prop.serializedObject.targetObject);
-				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateObjectField(prop, objType, sceneOk)), prop);
+				return OverrideRow(col.Row(label, SperlichEditorWidgets.CreateObjectField(prop, objType, sceneOk)), prop);
 			}
 
 			// Multiline string -> bound TextField in a Sperlich row.
@@ -442,7 +446,7 @@ namespace Sperlich.EditorKit {
 				SperlichFieldColumn.HideInternalLabel(tf);
 				VisualElement inner = tf.Q("unity-text-input");
 				if (inner != null) inner.style.minHeight = 18 * Mathf.Max(2, meta.MultilineRows);
-				return OverrideRow(col.Row(prop.displayName, tf), prop);
+				return OverrideRow(col.Row(label, tf), prop);
 			}
 
 			// Plain string -> bound TextField in a Sperlich row. Same external 150px label column as every
@@ -452,7 +456,7 @@ namespace Sperlich.EditorKit {
 				var tf = new TextField { style = { flexGrow = 1 } };
 				tf.BindProperty(prop);
 				SperlichFieldColumn.HideInternalLabel(tf);
-				return OverrideRow(col.Row(prop.displayName, tf), prop);
+				return OverrideRow(col.Row(label, tf), prop);
 			}
 
 			// Plain number / [Range] -> hand-built Sperlich drag field or slider. These are not native
@@ -462,14 +466,14 @@ namespace Sperlich.EditorKit {
 				if (meta != null && meta.HasRange) {
 					bool intMode = prop.propertyType == SerializedPropertyType.Integer;
 					VisualElement slider = SperlichEditorWidgets.CreateRangeSlider(prop, meta.RangeMin, meta.RangeMax, intMode, ResolveAccent(meta));
-					return OverrideRow(col.Row(prop.displayName, slider), prop);
+					return OverrideRow(col.Row(label, slider), prop);
 				}
 				if (SperlichEditorWidgets.TryGetRange(prop, out float rMin, out float rMax)) {
 					bool intMode = prop.propertyType == SerializedPropertyType.Integer;
 					VisualElement slider = SperlichEditorWidgets.CreateRangeSlider(prop, rMin, rMax, intMode, ResolveAccent(meta));
-					return OverrideRow(col.Row(prop.displayName, slider), prop);
+					return OverrideRow(col.Row(label, slider), prop);
 				}
-				return OverrideRow(col.Row(prop.displayName, SperlichEditorWidgets.CreateDragNumberField(prop)), prop);
+				return OverrideRow(col.Row(label, SperlichEditorWidgets.CreateDragNumberField(prop)), prop);
 			}
 
 			// Color -> bound ColorField in a Sperlich row.
@@ -477,7 +481,7 @@ namespace Sperlich.EditorKit {
 				var cf = new UnityEditor.UIElements.ColorField { style = { flexGrow = 1 }, showAlpha = true };
 				cf.BindProperty(prop);
 				SperlichFieldColumn.HideInternalLabel(cf);
-				return OverrideRow(col.Row(prop.displayName, cf), prop);
+				return OverrideRow(col.Row(label, cf), prop);
 			}
 
 			// Gradient -> bound GradientField in a Sperlich row.
@@ -485,13 +489,13 @@ namespace Sperlich.EditorKit {
 				var gf = new UnityEditor.UIElements.GradientField { style = { flexGrow = 1 } };
 				gf.BindProperty(prop);
 				SperlichFieldColumn.HideInternalLabel(gf);
-				return OverrideRow(col.Row(prop.displayName, gf), prop);
+				return OverrideRow(col.Row(label, gf), prop);
 			}
 
 			// Everything else: curve / rect / bounds / quaternion / hash128 / …
 			// SperlichFieldColumn.Property returns a bound BaseField or a native PropertyField for these,
 			// which draw Unity's own prefab-override bar + Apply/Revert menu.
-			return col.Property(prop);
+			return col.Property(prop, label);
 		}
 
 		private static VisualElement OverrideRow(VisualElement row, SerializedProperty prop) {
@@ -794,7 +798,7 @@ namespace Sperlich.EditorKit {
 			return element;
 		}
 
-		private static VisualElement BuildNestedFoldout(SerializedProperty prop) {
+		private static VisualElement BuildNestedFoldout(SerializedProperty prop, string labelText = null) {
 			var wrap = SperlichEditorWidgets.CreateBox(4, SperlichEditorTheme.BorderSubtle);
 			wrap.style.backgroundColor = SperlichEditorTheme.BgStepBody;
 			wrap.style.marginTop = 2;
@@ -804,7 +808,7 @@ namespace Sperlich.EditorKit {
 			wrap.style.paddingTop = 3;
 			wrap.style.paddingBottom = 4;
 
-			var foldout = new Foldout { text = prop.displayName, value = prop.isExpanded };
+			var foldout = new Foldout { text = labelText ?? prop.displayName, value = prop.isExpanded };
 			foldout.RegisterValueChangedCallback(e => prop.isExpanded = e.newValue);
 			wrap.Add(foldout);
 

@@ -21,6 +21,8 @@ namespace Sperlich.EditorKit {
 			public BoxAttribute Box;
 			public List<(string label, string colorHtml, TintColor tint, LineStyle style, HLineAlign align, HLinePlacement placement)> HLines;
 			public Func<VisualElement> Build;
+			public bool ShowInPlayMode;
+			public bool ShowInEditMode;
 			public bool Done;
 		}
 
@@ -35,6 +37,7 @@ namespace Sperlich.EditorKit {
 				SperlichInspectorPlan.MethodButtonMeta captured = mb;
 				list.Add(new PendingEmit {
 					Token = captured.MetadataToken, Name = captured.Method.Name, After = captured.After, Before = captured.Before,
+					ShowInPlayMode = captured.ShowInPlayMode, ShowInEditMode = captured.ShowInEditMode,
 					Build = () => BuildMethodButton(captured, so, targetResolver),
 				});
 			}
@@ -43,6 +46,7 @@ namespace Sperlich.EditorKit {
 				SperlichInspectorPlan.ButtonGroupMeta captured = bg;
 				list.Add(new PendingEmit {
 					Token = captured.MetadataToken, Name = captured.Group,
+					ShowInPlayMode = captured.ShowInPlayMode, ShowInEditMode = captured.ShowInEditMode,
 					Build = () => BuildButtonGroupBar(captured, so, targetResolver),
 				});
 			}
@@ -58,6 +62,8 @@ namespace Sperlich.EditorKit {
 					RowGroup = captured.RowGroup,
 					Box = captured.Box,
 					HLines = captured.HLines,
+					ShowInPlayMode = captured.ShowInPlayMode,
+					ShowInEditMode = captured.ShowInEditMode,
 					Build = () => !string.IsNullOrEmpty(captured.RowGroup)
 						? BuildLiveDisplayCell(captured, so, targetResolver)
 						: BuildLiveDisplayRow(captured, so, targetResolver),
@@ -82,7 +88,12 @@ namespace Sperlich.EditorKit {
 					}
 				}
 				VisualElement el = pe.Build();
-				if (el != null) target.Add(el);
+				if (el != null) {
+					if (pe.ShowInPlayMode || pe.ShowInEditMode) {
+						ApplyVisibilityCondition(el, null, so, pe.ShowInPlayMode, pe.ShowInEditMode);
+					}
+					target.Add(el);
+				}
 				pe.Done = true;
 			}
 		}
@@ -129,7 +140,12 @@ namespace Sperlich.EditorKit {
 					};
 					for (int k = i; k < end; k++) {
 						VisualElement el = pending[k].Build();
-						if (el != null) rowWrap.Add(el);
+						if (el != null) {
+							if (pending[k].ShowInPlayMode || pending[k].ShowInEditMode) {
+								ApplyVisibilityCondition(el, null, so, pending[k].ShowInPlayMode, pending[k].ShowInEditMode);
+							}
+							rowWrap.Add(el);
+						}
 						pending[k].Done = true;
 					}
 					currentTarget.Add(rowWrap);
@@ -138,7 +154,12 @@ namespace Sperlich.EditorKit {
 				}
 
 				VisualElement single = pe.Build();
-				if (single != null) currentTarget.Add(single);
+				if (single != null) {
+					if (pe.ShowInPlayMode || pe.ShowInEditMode) {
+						ApplyVisibilityCondition(single, null, so, pe.ShowInPlayMode, pe.ShowInEditMode);
+					}
+					currentTarget.Add(single);
+				}
 				pe.Done = true;
 				i++;
 			}
