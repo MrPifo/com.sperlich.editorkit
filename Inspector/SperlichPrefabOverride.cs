@@ -22,6 +22,16 @@ namespace Sperlich.EditorKit {
 		/// revert the whole collection.</summary>
 		private const string OverrideScopeClass = "sperlich-override-scope";
 
+		/// <summary>Set on the body of a <c>[Box]</c> / <c>[SubBox]</c>. Those clip their content, so a row
+		/// inside pulls its bar in from the default gutter position to the body's inner left edge.</summary>
+		private const string GroupBodyClass = "sperlich-group-body";
+
+		/// <summary>Furthest left (relative to the row) a bar may sit inside a group body — the body's own
+		/// left padding.</summary>
+		private const int GroupBarLeft = -3;
+
+		public static void MarkGroupBody(VisualElement body) => body.AddToClassList(GroupBodyClass);
+
 		public static void Attach(VisualElement row, Label label, SerializedProperty property, int barLeft = -6) {
 			SerializedProperty prop = property.Copy();
 			SerializedObject so = prop.serializedObject;
@@ -120,12 +130,22 @@ namespace Sperlich.EditorKit {
 			row.AddManipulator(new ContextualMenuManipulator(_ => { }));
 
 			row.AddToClassList(OverrideScopeClass);
-			row.RegisterCallback<AttachToPanelEvent>(_ => Refresh());
+			row.RegisterCallback<AttachToPanelEvent>(_ => {
+				bar.style.left = InsideGroupBody(row) ? Mathf.Max(barLeft, GroupBarLeft) : barLeft;
+				Refresh();
+			});
 			row.TrackPropertyValue(prop, _ => Refresh());
 			// Safety net for changes that don't fire TrackPropertyValue (external Revert, Undo, Apply from
 			// the component header). schedule pauses automatically while the inspector is closed.
 			row.schedule.Execute(Refresh).Every(400);
 			Refresh();
+		}
+
+		private static bool InsideGroupBody(VisualElement row) {
+			for (VisualElement p = row.hierarchy.parent; p != null; p = p.hierarchy.parent) {
+				if (p.ClassListContains(GroupBodyClass)) return true;
+			}
+			return false;
 		}
 	}
 }

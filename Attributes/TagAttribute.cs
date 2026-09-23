@@ -4,7 +4,7 @@ using System.Diagnostics;
 namespace Sperlich.EditorKit {
 
 	/// <summary>
-	/// Small colored pill badge next to the field's label, in a <see cref="SInspectorAttribute"/> inspector.
+	/// Small colored pill badge after the field's control, in a <see cref="SInspectorAttribute"/> inspector.
 	/// Purely decorative — for flagging a field as experimental, deprecated-but-kept, designer-only, etc.
 	/// Stackable: several <c>[Tag]</c> attributes render as several pills in declaration order.
 	///

@@ -18,7 +18,9 @@ namespace Sperlich.EditorKit {
 
 		public float Min { get; }
 		public float Max { get; }
-		public float Diameter { get; }
+		/// <summary>Dial size in pixels. Set it positionally on the <c>(min, max)</c> overload, or by name on the
+		/// preset overload: <c>[Knob(KnobRange.Unit01, Diameter = 60)]</c>.</summary>
+		public float Diameter { get; set; } = 42f;
 
 		public KnobAttribute(float min, float max, float diameter = 42f) {
 			Min = min;
@@ -26,7 +28,9 @@ namespace Sperlich.EditorKit {
 			Diameter = diameter;
 		}
 
-		public KnobAttribute(KnobRange range, float diameter = 42f) {
+		// No positional diameter here: with one, the literal 0 converts to KnobRange, so [Knob(0, 90)] silently
+		// bound to (KnobRange.Degrees0To360, diameter: 90) instead of the (min, max) overload.
+		public KnobAttribute(KnobRange range) {
 			(Min, Max) = range switch {
 				KnobRange.Degrees0To360 => (0f, 360f),
 				KnobRange.DegreesSigned180 => (-180f, 180f),
@@ -35,7 +39,6 @@ namespace Sperlich.EditorKit {
 				KnobRange.Unit01 => (0f, 1f),
 				_ => (0f, 1f),
 			};
-			Diameter = diameter;
 		}
 	}
 }

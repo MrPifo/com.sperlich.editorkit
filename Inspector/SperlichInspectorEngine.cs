@@ -26,7 +26,7 @@ namespace Sperlich.EditorKit {
 	public static partial class SperlichInspectorEngine {
 
 		public const string RootClass = "sperlich-inspector";
-		private static readonly Color Accent = SperlichEditorTheme.ButtonAccent;
+		private static Color Accent => SperlichEditorTheme.ButtonAccent;
 
 		/// <summary>Resolves <c>[AccentColor]</c> for a field, falling back to the theme <see cref="Accent"/>.</summary>
 		private static Color ResolveAccent(SperlichInspectorPlan.MemberMeta meta) =>
@@ -49,9 +49,10 @@ namespace Sperlich.EditorKit {
 			root.AddToClassList(RootClass);
 			StyleSheet sheet = ResolveStyleSheet();
 			if (sheet != null) root.styleSheets.Add(sheet);
+			SperlichEditorWidgets.EnableFocusAccent(root);
 
 			SperlichInspectorPlan plan = SperlichInspectorPlan.For(targetType);
-			BuildInto(root, serializedObject, plan);
+			BuildWithDynamicStyle(root, serializedObject, plan, targetType);
 			return root;
 		}
 
@@ -90,13 +91,17 @@ namespace Sperlich.EditorKit {
 			List<PendingEmit> pending = BuildPendingEmits(plan, members, so, targetResolver);
 			Dictionary<int, (int end, BoxAttribute box, string firstName)> boxSpans = ComputeBoxSpans(members);
 			(Dictionary<int, string> tabIndexGroup, Dictionary<string, TabGroupSpec> tabSpecs) = ComputeTabGroups(members);
+			Dictionary<int, (int end, SubBoxAttribute box, string firstName)> subBoxSpans = ComputeSubBoxSpans(members);
 			var tabGroupBuilt = new HashSet<string>();
 
 			VisualElement target = container;
+			VisualElement boxBody = container; // where fields go when no [SubBox] is open
 			int activeBoxEnd = -1;
+			int activeSubBoxEnd = -1;
 
 			for (int i = 0; i < members.Count; i++) {
-				if (activeBoxEnd == i) { target = container; activeBoxEnd = -1; }
+				if (activeBoxEnd == i) { boxBody = container; target = container; activeBoxEnd = -1; activeSubBoxEnd = -1; }
+				if (activeSubBoxEnd == i) { target = boxBody; activeSubBoxEnd = -1; }
 
 				// [TabGroup]: pulled out of normal in-order emission (members can be scattered across the
 				// class) — the whole tab bar is built once, at the first member of the group.
@@ -111,12 +116,19 @@ namespace Sperlich.EditorKit {
 				bool tightHeader = i == 0;
 				if (boxSpans.TryGetValue(i, out (int end, BoxAttribute box, string firstName) span)) {
 					target = BuildBoxContainer(container, so, span.box, span.firstName);
+					boxBody = target;
 					activeBoxEnd = span.end;
 					// A [Header] as the box's first child butts flush against the chevron strip; a plain
 					// first row keeps a little breathing room at the top of the body.
 					bool leadHeader = members[i].Meta != null && !string.IsNullOrEmpty(members[i].Meta.Header);
 					tightHeader = leadHeader;
 					if (!leadHeader) target.style.paddingTop = 3;
+				}
+
+				if (subBoxSpans.TryGetValue(i, out (int end, SubBoxAttribute box, string firstName) subSpan)) {
+					target = BuildSubBoxContainer(boxBody, so, subSpan.box, subSpan.firstName);
+					activeSubBoxEnd = subSpan.end;
+					tightHeader = false;
 				}
 
 				FlushPinned(pending, target, so, before: members[i].Name);
@@ -256,6 +268,8 @@ namespace Sperlich.EditorKit {
 			// Per-cell prefab-override affordance ([SRow] members had none). Slim gutter offset so the bar
 			// sits in the inter-cell gap rather than under the previous cell.
 			SperlichPrefabOverride.Attach(cell, caption, m.Prop, barLeft: -3);
+			// The run's first member drives the whole row's visibility; later cells can hide on their own.
+			if (m.Meta?.Visibility != null) ApplyVisibilityCondition(cell, m.Meta.Visibility, m.Prop.serializedObject);
 			return cell;
 		}
 

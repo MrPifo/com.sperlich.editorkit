@@ -52,14 +52,59 @@
     border-bottom-left-radius: 3px;
     border-bottom-right-radius: 3px;
     color: var(--sperlich-text);
+    transition-property: border-color;
+    transition-duration: 0.1s;
 }
 
 .sperlich-inspector .unity-composite-field__field #unity-text-input {
     background-color: var(--sperlich-bg-dark);
 }
 
+/* hover: accent border at half strength; focus (below, must stay last) at full strength */
+.sperlich-inspector #unity-text-input:hover,
+.sperlich-inspector .unity-base-text-field__input:hover,
+.sperlich-inspector .unity-integer-field__input:hover,
+.sperlich-inspector .unity-float-field__input:hover,
+.sperlich-inspector .unity-double-field__input:hover,
+.sperlich-inspector .unity-long-field__input:hover,
+.sperlich-inspector .unity-text-field__input:hover,
+.sperlich-inspector .unity-object-field__input:hover,
+.sperlich-inspector .unity-enum-field__input:hover,
+.sperlich-inspector .unity-popup-field__input:hover,
+.sperlich-inspector .unity-layer-mask-field__input:hover,
+.sperlich-inspector .unity-tag-field__input:hover {
+    border-color: rgba(96, 165, 250, 0.55);
+}
+
+/* focus: full accent strength, kept while hovered too. Popup-style fields take focus on the field root. */
+.sperlich-inspector #unity-text-input:focus,
+.sperlich-inspector #unity-text-input:focus:hover,
 .sperlich-inspector .unity-base-field__input:focus,
-.sperlich-inspector #unity-text-input:focus {
+.sperlich-inspector .unity-base-field__input:focus:hover,
+.sperlich-inspector .unity-base-text-field__input:focus,
+.sperlich-inspector .unity-base-text-field__input:focus:hover,
+.sperlich-inspector .unity-integer-field__input:focus,
+.sperlich-inspector .unity-integer-field__input:focus:hover,
+.sperlich-inspector .unity-float-field__input:focus,
+.sperlich-inspector .unity-float-field__input:focus:hover,
+.sperlich-inspector .unity-double-field__input:focus,
+.sperlich-inspector .unity-double-field__input:focus:hover,
+.sperlich-inspector .unity-long-field__input:focus,
+.sperlich-inspector .unity-long-field__input:focus:hover,
+.sperlich-inspector .unity-text-field__input:focus,
+.sperlich-inspector .unity-text-field__input:focus:hover,
+.sperlich-inspector .unity-object-field__input:focus,
+.sperlich-inspector .unity-object-field__input:focus:hover,
+.sperlich-inspector .unity-enum-field__input:focus,
+.sperlich-inspector .unity-enum-field__input:focus:hover,
+.sperlich-inspector .unity-popup-field__input:focus,
+.sperlich-inspector .unity-popup-field__input:focus:hover,
+.sperlich-inspector .unity-layer-mask-field__input:focus,
+.sperlich-inspector .unity-layer-mask-field__input:focus:hover,
+.sperlich-inspector .unity-tag-field__input:focus,
+.sperlich-inspector .unity-tag-field__input:focus:hover,
+.sperlich-inspector .unity-base-field:focus > .unity-base-field__input,
+.sperlich-inspector .unity-base-field:focus:hover > .unity-base-field__input {
     border-color: var(--sperlich-accent);
 }
 

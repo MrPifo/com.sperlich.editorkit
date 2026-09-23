@@ -34,4 +34,20 @@ namespace Sperlich.EditorKit {
 			Tint = tint;
 		}
 	}
+
+	/// <summary>
+	/// Replaces the theme accent colour for a whole <see cref="SInspectorAttribute"/> inspector with the value
+	/// of a member (field, property or parameterless method) returning a <c>Color</c> or
+	/// <see cref="Sperlich.EditorKit.TintColor"/>. The inspector rebuilds when the value changes.
+	///
+	/// <code>[SInspector, InspectorAccent(nameof(ModeAccent))] class Foo : MonoBehaviour { TintColor ModeAccent => ...; }</code>
+	/// </summary>
+	[Conditional("UNITY_EDITOR")]
+	[AttributeUsage(AttributeTargets.Class, AllowMultiple = false, Inherited = true)]
+	public sealed class InspectorAccentAttribute : Attribute {
+
+		public string Member { get; }
+
+		public InspectorAccentAttribute(string member) => Member = member;
+	}
 }

@@ -1,0 +1,1466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sperlich EditorKit Docs</title>
+<style>
+/* ============================================================
+   Tokens — mirror SperlichEditorTheme.cs / SperlichInspector.uss
+   ============================================================ */
+:root {
+  --bg-dark: #242424;        /* BgDark: input surfaces, tracks */
+  --bg-step: #303030;        /* BgStep: header strips */
+  --bg-step-body: #262626;   /* BgStepBody: box bodies */
+  --bg-panel: #2b2b2b;       /* BgPanel */
+  --unity-win: #282828;      /* Unity dark inspector window */
+  --border: rgba(255,255,255,.08);
+  --border-strong: rgba(255,255,255,.15);
+  --text: #e2e2e2;
+  --text-2: #cccccc;
+  --text-muted: #949494;
+  --text-faint: #7a7a7a;
+  --btn: #383838;
+  --btn-hover: #474747;
+  --btn-border: rgba(255,255,255,.11);
+  --accent: #60a5fa;
+  --tog-on: #3b82f6;
+  --tog-off: #3b3b3b;
+  --info: #2673d9;
+  --warn: #d98c26;
+  --danger: #d93333;
+  --ovr: #0f80bf;
+  /* docs chrome */
+  --page: #1b1b1c;
+  --side: #171718;
+  --card: #212122;
+  --card-2: #262627;
+  --mono: ui-monospace, "Cascadia Code", Consolas, "SF Mono", Menlo, monospace;
+  --sans: Inter, "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --lbl: 150px;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 16px; }
+body { margin: 0; background: var(--page); color: var(--text); font: 14px/1.55 var(--sans); -webkit-font-smoothing: antialiased; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code, kbd { font-family: var(--mono); font-size: .88em; background: rgba(255,255,255,.07); padding: 1px 5px; border-radius: 4px; color: #d6dbe4; }
+
+/* ============================================================
+   App shell
+   ============================================================ */
+.app { display: flex; min-height: 100vh; }
+.side { width: 272px; flex: 0 0 272px; background: var(--side); border-right: 1px solid var(--border); position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; }
+.brand { padding: 18px 18px 10px; }
+.brand h1 { margin: 0; font-size: 17px; letter-spacing: .2px; display: flex; align-items: center; gap: 9px; }
+.brand h1 i { width: 10px; height: 10px; border-radius: 3px; background: var(--accent); box-shadow: 0 0 12px rgba(96,165,250,.7); display: inline-block; }
+.brand small { color: var(--text-muted); font-size: 12px; }
+.search { padding: 4px 14px 10px; position: relative; }
+.search input { width: 100%; height: 32px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 6px; color: var(--text); padding: 0 10px 0 30px; font: 13px var(--sans); outline: none; }
+.search input:focus { border-color: var(--accent); }
+.search::before { content: "⌕"; position: absolute; left: 24px; top: 5px; color: var(--text-muted); font-size: 16px; }
+.menu-btn { display: none; }
+nav { overflow-y: auto; padding: 0 8px 24px; flex: 1; }
+nav::-webkit-scrollbar { width: 8px; } nav::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+.nav-group { margin: 12px 0 2px; padding: 0 10px; font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); }
+nav a { display: flex; align-items: center; justify-content: space-between; padding: 3px 10px; border-radius: 5px; color: var(--text-2); font-size: 12.5px; font-family: var(--mono); border-left: 2px solid transparent; }
+nav a:hover { background: rgba(255,255,255,.05); text-decoration: none; }
+nav a.on { background: rgba(96,165,250,.12); color: #fff; border-left-color: var(--accent); }
+nav a.sub { color: var(--text-muted); font-family: var(--sans); }
+main { flex: 1; min-width: 0; padding: 0 44px 80px; }
+.wrap { max-width: 1180px; margin: 0 auto; }
+
+/* ============================================================
+   Hero
+   ============================================================ */
+.hero { padding: 46px 0 22px; }
+.hero h2 { font-size: 34px; margin: 0 0 8px; letter-spacing: -.3px; }
+.hero h2 span { color: var(--accent); }
+.hero p.lead { font-size: 16px; color: var(--text-2); max-width: 760px; margin: 0 0 20px; }
+.hero-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.install { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 8px 8px 14px; font-family: var(--mono); font-size: 12.5px; color: #cfd6e0; max-width: 100%; }
+.install span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 8px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; font-size: 13px; color: var(--text-2); }
+.stats { display: flex; gap: 22px; margin-top: 22px; color: var(--text-muted); font-size: 13px; flex-wrap: wrap; }
+.stats b { color: #fff; font-size: 20px; display: block; line-height: 1.1; }
+
+/* ============================================================
+   Sections + cards
+   ============================================================ */
+section.grp { padding-top: 34px; }
+section.grp > header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+section.grp > header h3 { margin: 0; font-size: 22px; }
+section.grp > header p { margin: 0; color: var(--text-muted); font-size: 13.5px; }
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px 20px; margin-bottom: 16px; }
+.card:target { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.card h4 { margin: 0; font-size: 18px; font-family: var(--mono); font-weight: 600; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.card h4 .al { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+.card h4 a.perma { opacity: 0; color: var(--text-faint); font-size: 14px; }
+.card:hover h4 a.perma { opacity: 1; }
+.chip { font: 600 10px var(--sans); letter-spacing: .05em; text-transform: uppercase; padding: 2px 7px; border-radius: 10px; background: rgba(255,255,255,.07); color: var(--text-muted); }
+.chip.multi { background: rgba(96,165,250,.14); color: var(--accent); }
+.sigs { margin: 8px 0 0; display: flex; flex-direction: column; gap: 3px; }
+.sigs code { display: block; background: none; padding: 0; color: var(--text-muted); font-size: 12px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.desc { margin: 10px 0 0; color: var(--text-2); max-width: 900px; }
+.notes { margin: 8px 0 0; padding-left: 18px; color: var(--text-muted); font-size: 13.5px; }
+.notes li { margin: 2px 0; }
+.demo-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; align-items: start; }
+.demo-grid > * { min-width: 0; }
+.pane-lbl { font-size: 10.5px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); margin: 0 0 6px; font-weight: 700; }
+.codebox { position: relative; background: #1a1b1e; border: 1px solid var(--border); border-radius: 8px; }
+.codebox pre { margin: 0; padding: 12px 14px; overflow-x: auto; font: 12.5px/1.6 var(--mono); color: #d4d4d4; tab-size: 4; }
+.copy { position: absolute; right: 8px; top: 8px; background: rgba(255,255,255,.07); border: 1px solid var(--border); color: var(--text-muted); font: 11px var(--sans); padding: 2px 8px; border-radius: 5px; cursor: pointer; opacity: 0; transition: opacity .12s; }
+.codebox:hover .copy { opacity: 1; }
+.copy:hover { color: #fff; background: rgba(255,255,255,.12); }
+.k { color: #569cd6; } .t { color: #4ec9b0; } .s { color: #ce9178; } .c { color: #6a9955; } .n { color: #b5cea8; }
+.empty { display: none; padding: 40px; text-align: center; color: var(--text-muted); }
+table.ref { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 8px; }
+table.ref th, table.ref td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.ref th { color: var(--text-muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+table.ref td:first-child { font-family: var(--mono); color: #d6dbe4; white-space: nowrap; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; margin-top: 10px; }
+.sw { display: flex; align-items: center; gap: 8px; font: 12px var(--mono); color: var(--text-2); background: var(--card-2); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; cursor: pointer; }
+.sw i { width: 18px; height: 18px; border-radius: 4px; border: 1px solid rgba(255,255,255,.12); flex: none; }
+.sw small { display: block; color: var(--text-faint); font-size: 10px; }
+.tok { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; margin-top: 10px; }
+.tok .sw { cursor: default; }
+.two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.hl-note { background: rgba(96,165,250,.08); border: 1px solid rgba(96,165,250,.25); border-radius: 8px; padding: 10px 14px; color: var(--text-2); font-size: 13.5px; }
+
+/* ============================================================
+   The mock inspector (.si) — pixel values come from the UIToolkit widgets
+   ============================================================ */
+.si { font: 12px/1.35 var(--sans); color: var(--text); }
+.si-panel { background: var(--unity-win); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px 8px; position: relative; overflow: hidden; }
+.si *, .si *::before, .si *::after { box-sizing: border-box; }
+.si-row { display: flex; align-items: center; min-height: 20px; margin: 1px 0; position: relative; }
+.si-lbl { width: var(--lbl); min-width: var(--lbl); max-width: var(--lbl); flex: none; padding-left: 3px; color: var(--text-2); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.si-ctl { flex: 1; display: flex; align-items: center; min-width: 0; }
+.si-ctl > * { min-width: 0; }
+.si-row.ovr::before { content: ""; position: absolute; left: -7px; top: 0; bottom: 0; width: 2px; background: var(--ovr); }
+.si-row.ovr .si-lbl { font-weight: 700; }
+.si-row.ro { opacity: .5; pointer-events: none; }
+.si-row.dis { opacity: .5; pointer-events: none; }
+.si-in { flex: 1; min-width: 0; height: 18px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 3px; color: var(--text); font: 12px var(--sans); padding: 0 5px; outline: none; }
+.si-in:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.si-in:focus { border-color: var(--accent); }
+.si-in::placeholder { color: var(--text-faint); }
+.si-sel { appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 20px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23949494' stroke-width='1.4'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 6px center; }
+.si-sel:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.si-sel option { background: #2b2b2b; color: #e2e2e2; }
+.si-num { display: flex; align-items: center; flex: 1; min-width: 0; }
+.si-num .si-in { margin: 0 2px; }
+.si-grip { width: 12px; min-width: 12px; align-self: stretch; min-height: 18px; cursor: ew-resize; flex: none; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='18'%3E%3Cg fill='%23949494'%3E%3Ccircle cx='4' cy='5' r='1.1'/%3E%3Ccircle cx='4' cy='9' r='1.1'/%3E%3Ccircle cx='4' cy='13' r='1.1'/%3E%3Ccircle cx='8' cy='5' r='1.1'/%3E%3Ccircle cx='8' cy='9' r='1.1'/%3E%3Ccircle cx='8' cy='13' r='1.1'/%3E%3C/g%3E%3C/svg%3E") center / 12px 18px no-repeat; }
+.si-grip:hover { filter: brightness(1.8); }
+.si-spin { width: 14px; height: 18px; flex: none; display: flex; flex-direction: column; justify-content: center; align-items: center; background: var(--btn); border: 1px solid var(--btn-border); border-radius: 2px; }
+.si-spin span { font-size: 9px; height: 10px; line-height: 10px; width: 14px; text-align: center; color: var(--text-muted); cursor: pointer; user-select: none; }
+.si-spin span:hover { color: #fff; }
+.si-suf { font-size: 10px; color: var(--text-muted); margin-left: 5px; flex: none; white-space: nowrap; }
+.si-suf.ov { position: absolute; right: 6px; top: 0; bottom: 0; display: flex; align-items: center; margin: 0; pointer-events: none; }
+.si-obj { flex: 1; min-width: 0; height: 18px; background: var(--bg-dark); border: 1px solid var(--border); border-radius: 3px; display: flex; align-items: center; padding: 0 5px; gap: 5px; color: var(--text-muted); cursor: pointer; font-size: 12px; overflow: hidden; white-space: nowrap; }
+.si-obj:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.si-obj.set { color: var(--text); }
+.si-obj i { width: 10px; height: 10px; border-radius: 2px; background: #4a5568; flex: none; }
+.si-obj em { margin-left: auto; font-style: normal; color: var(--text-faint); }
+.si-color { flex: 1; height: 18px; border-radius: 3px; border: 1px solid var(--border-strong); }
+
+/* toggle */
+.si-tog { width: 30px; height: 14px; border-radius: 7px; background: var(--tog-off); position: relative; flex: none; cursor: pointer; transition: background-color .12s ease-out; }
+.si-tog::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 5px; background: #fff; transition: left .12s ease-out; }
+.si-tog.on { background: var(--tog-on); }
+.si-tog.on::after { left: 18px; }
+.si-tog:hover { filter: brightness(1.18); }
+
+/* range slider (design C) */
+.si-slider { display: flex; align-items: center; flex: 1; min-width: 0; overflow: hidden; }
+.si-sla { flex: 1; min-width: 40px; height: 18px; position: relative; margin-right: 8px; cursor: ew-resize; touch-action: none; }
+.si-travel { position: absolute; left: 7px; right: 7px; top: 0; bottom: 0; }
+.si-track, .si-fill { position: absolute; top: 7px; height: 4px; border-radius: 2px; }
+.si-track { left: 0; right: 0; background: var(--bg-dark); }
+.si-fill { left: 0; background: var(--acc, var(--accent)); }
+.si-tick { position: absolute; top: 6px; width: 1px; height: 6px; background: var(--border-strong); }
+.si-handle { position: absolute; top: 1px; width: 14px; height: 16px; border-radius: 3px; background: var(--acc, var(--accent)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.si-handle::before, .si-handle::after { content: ""; width: 5px; height: 1px; background: #0f2138; }
+.si-handle::after { margin-top: 2px; }
+.si-slider .si-num { flex: none; width: 62px; }
+.si-slider.mm .si-num { width: 52px; }
+.si-slider.mm .si-num + .si-num { margin-left: 4px; }
+.si-band { position: absolute; top: 7px; height: 4px; background: var(--acc, var(--accent)); cursor: grab; }
+
+/* segmented / flag buttons */
+.si-seg { display: flex; flex-direction: column; flex: 1; margin-bottom: 6px; min-width: 0; }
+.si-segrow { display: flex; }
+.si-segrow + .si-segrow { margin-top: 3px; }
+.si-sg { flex: 1 1 0; min-width: 0; padding: 4px 0; border: 1px solid var(--border); border-radius: 3px; margin-right: 3px; font-size: 10px; text-align: center; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; background: transparent; transition: background-color .1s, border-color .1s, color .1s; user-select: none; }
+.si-segrow > .si-sg:last-child { margin-right: 0; }
+.si-sg:hover { border-color: var(--border-strong); background: rgba(255,255,255,.05); color: var(--text-2); }
+.si-sg.on { border-color: var(--a); background: color-mix(in srgb, var(--a) 12%, transparent); color: var(--a); font-weight: 700; }
+.si-sg.on:hover { background: color-mix(in srgb, var(--a) 18%, transparent); }
+.si-flags .si-sg.on { background: color-mix(in srgb, var(--a) 16%, var(--btn)); }
+.si-flags .si-sg:not(.on) { background: var(--btn); }
+
+/* buttons */
+.si-btnrow { display: flex; margin: 1px 0; }
+.si-btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; background: var(--btn); color: #fff; border: 1px solid var(--btn-border); border-radius: 3px; font: 12px var(--sans); height: 20px; padding: 0 8px; cursor: pointer; transition: transform .11s ease-out, background-color .11s, border-color .11s; margin: 0; }
+.si-btn:hover { background: var(--btn-hover); transform: scale(1.03); }
+.si-btn.acc:hover { border-color: var(--accent); }
+.si-btn:active { transform: scale(.94); }
+.si-btn.sm { width: 90px; } .si-btn.nm { width: 140px; } .si-btn.lg { width: 220px; } .si-btn.full { flex: 1; width: 100%; }
+.si-btn.h16 { height: 16px; } .si-btn.h28 { height: 28px; }
+.si-btn .ic { font-size: 12px; opacity: .9; }
+.si-inl { height: 18px; margin-left: 4px; font-size: 10px; padding: 0 7px; flex: none; }
+.si-bg { display: flex; margin: 2px 0; }
+.si-bgs { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; height: 20px; padding: 0 6px; margin-right: 3px; background: var(--btn); border: 1px solid var(--btn-border); border-radius: 3px; font-size: 10px; font-weight: 700; color: var(--text-2); cursor: pointer; transition: transform .11s ease-out, background-color .1s, border-color .1s; }
+.si-bg > .si-bgs:last-child { margin-right: 0; }
+.si-bgs:hover { background: var(--btn-hover); border-color: var(--accent); transform: scale(1.03); }
+.si-bgs:active { transform: scale(.94); }
+
+/* header strip, boxes */
+.si-header { font-weight: 700; font-size: 11px; color: var(--text-2); background: var(--bg-step); margin: 8px -10px 5px -10px; padding: 4px 10px; border-bottom: 1px solid var(--border); text-transform: uppercase; }
+.si-header.tight { margin-top: 0; }
+.si-space { height: 8px; }
+.si-box { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; margin: 3px 0; background: var(--bg-step-body); }
+.si-btitle { display: flex; align-items: stretch; background: var(--bg-step); border-bottom: 1px solid var(--border); }
+.si-btitle span { font-weight: 700; font-size: 11px; color: var(--text-2); padding: 4px 8px; }
+.si-sb { width: 4px; flex: none; align-self: stretch; }
+.si-bbody { background: var(--bg-step-body); padding: 3px 3px 4px; }
+.si-chev { display: flex; align-items: center; background: var(--bg-step); padding: 4px 6px; cursor: pointer; transition: background-color .1s; }
+.si-chev:hover { background: #3a3a3a; }
+.si-arrow { font-size: 10px; width: 12px; color: var(--text-muted); flex: none; }
+.si-chevt { font-weight: 700; font-size: 11px; color: var(--text-2); }
+.si-sbwrap { display: flex; }
+.si-sbwrap > .si-box { flex: 1; margin: 3px 0; border-radius: 0 4px 4px 0; }
+.si-sub { position: relative; margin: 4px 2px; background: var(--bg-step-body); }
+.si-subf { margin-top: 7px; padding: 9px 3px 3px; border: 1px solid var(--border-strong); border-radius: 4px; }
+.si-subf.nolegend { margin-top: 0; padding-top: 3px; }
+.si-legend { position: absolute; top: 0; left: 8px; height: 14px; display: flex; align-items: center; background: var(--bg-step-body); padding: 0 6px; font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; }
+.si-legend.click { cursor: pointer; }
+.si-legend .dot { width: 6px; height: 6px; border-radius: 3px; margin-right: 5px; flex: none; }
+.si-legend .ar { margin-right: 4px; }
+.si-tabs { border: 1px solid var(--border); border-radius: 4px; background: var(--bg-step-body); margin: 2px 0 4px; padding-bottom: 6px; }
+.si-tabbar { display: flex; border-bottom: 1px solid var(--border); }
+.si-tab { cursor: pointer; }
+.si-tab b { display: block; font-size: 11px; color: var(--text-muted); padding: 6px 10px; }
+.si-tab u { display: block; height: 2px; margin-top: 2px; text-decoration: none; background: transparent; }
+.si-tab.on b { color: #fff; }
+.si-tab.on u { background: var(--accent); }
+.si-tabbody { padding: 6px 8px 0; }
+
+/* hline */
+.si-hl { display: flex; align-items: center; margin: 7px 0; flex: none; }
+.si-hl.above { flex-direction: column; align-items: stretch; margin: 8px 0 6px; }
+.si-hl .seg { flex: 1; height: 0; }
+.si-hl .lb { font-size: 10px; font-weight: 700; color: var(--text-muted); margin: 0 8px; white-space: nowrap; }
+.si-hl.above .lb { margin: 0 0 3px; letter-spacing: .5px; }
+
+/* messages, tags, badges */
+.si-msg { display: flex; align-items: flex-start; padding: 6px 8px; margin: 1px 0 4px; border: 1px solid var(--c); border-radius: 4px; background: var(--bgc); }
+.si-msg b { color: var(--c); font-size: 12px; margin-right: 6px; flex: none; }
+.si-msg span { font-size: 11px; color: #fff; flex: 1; }
+.si-msg.info { --c: var(--border-strong); --bgc: var(--bg-panel); }
+.si-msg.warn { --c: var(--warn); --bgc: rgba(217,140,38,.18); }
+.si-msg.error { --c: var(--danger); --bgc: rgba(217,51,51,.18); }
+.si-tag { font-size: 9px; font-weight: 700; color: #141719; padding: 1px 5px; border-radius: 8px; margin-left: 5px; flex: none; text-align: center; }
+.si-badge { font-size: 9px; font-weight: 700; padding: 1px 6px; border-radius: 3px; background: rgba(255,255,255,.08); color: var(--text-muted); text-transform: uppercase; }
+.si-val { font-size: 11px; color: var(--text-2); opacity: .6; white-space: nowrap; }
+.si-idx { font-size: 10px; min-width: 22px; padding: 1px 5px; text-align: center; border: 1px solid rgba(255,255,255,.13); background: rgba(255,255,255,.06); color: var(--text-muted); border-radius: 5px; margin-left: 8px; }
+.si-req { position: relative; }
+.si-req .flag { position: absolute; left: -9px; top: 1px; bottom: 1px; width: 2px; background: var(--danger); }
+
+/* progress bar */
+.si-pb { flex: 1; position: relative; background: var(--bg-dark); border: 1px solid var(--border); overflow: hidden; }
+.si-pbf { position: absolute; left: 0; top: 0; bottom: 0; background: var(--acc, var(--accent)); }
+.si-pbf::after { content: ""; position: absolute; left: 0; right: 0; top: 55%; bottom: 0; background: rgba(0,0,0,.12); }
+.si-pb .ov { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: #fff; pointer-events: none; }
+.si-pb .notch { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(0,0,0,.3); }
+
+/* knob, stepper */
+.si-knobrow { display: flex; align-items: center; flex: 1; min-width: 0; }
+.si-knob { flex: none; margin-right: 8px; cursor: move; touch-action: none; }
+.si-step { display: flex; align-items: center; flex: 1; min-width: 0; }
+.si-stb { width: 22px; height: 22px; flex: none; display: flex; align-items: center; justify-content: center; background: var(--btn); border: 1px solid var(--btn-border); border-radius: 3px; font-size: 13px; font-weight: 700; color: var(--accent); cursor: pointer; user-select: none; }
+.si-stb:hover { background: var(--btn-hover); }
+.si-step .si-in { margin: 0 3px; text-align: center; height: 22px; }
+
+/* expandable, lists */
+.si-exp { display: flex; align-items: center; flex: 1; min-width: 0; }
+.si-expb { display: flex; align-items: center; height: 20px; padding: 0 8px 0 7px; margin-left: 6px; background: var(--btn); border: 1px solid var(--accent); border-radius: 3px; cursor: pointer; flex: none; }
+.si-expb:hover { background: var(--btn-hover); }
+.si-expb i { font-style: normal; font-size: 10px; color: var(--accent); margin-right: 3px; }
+.si-expb b { font-size: 10px; color: var(--text-2); }
+.si-expbody { margin: 3px 0 4px 16px; border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 4px; background: var(--bg-step-body); overflow: hidden; }
+.si-expbody .hd { background: var(--bg-step); border-bottom: 1px solid var(--border); font-size: 10px; font-weight: 700; color: var(--text-2); padding: 3px 8px; text-transform: uppercase; }
+.si-expbody .bd { padding: 3px; }
+.si-list { margin: 2px 0 4px; }
+.si-lhead { display: flex; align-items: center; background: var(--bg-step); padding: 4px 6px; }
+.si-lhead .ttl { font-weight: 700; font-size: 11px; color: var(--text-2); margin-left: 2px; }
+.si-lhead .sp { flex: 1; }
+.si-lhead .plus { width: 18px; height: 18px; margin-right: 4px; display: flex; align-items: center; justify-content: center; background: var(--bg-dark); border-radius: 3px; color: var(--acc, var(--accent)); font-weight: 700; font-size: 13px; cursor: pointer; }
+.si-lhead .plus:hover { background: var(--btn-hover); }
+.si-lbody { background: var(--bg-step-body); padding: 3px 4px 5px; }
+.si-li { display: flex; align-items: flex-start; padding: 3px 4px; transition: background-color .09s; border-top: 2px solid transparent; }
+.si-li:nth-child(odd) { background: var(--bg-dark); } .si-li:nth-child(even) { background: var(--bg-step); }
+.si-li:hover { background: var(--btn); }
+.si-li .no { min-width: 16px; margin: 2px 4px 0 1px; font-size: 10px; font-weight: 700; color: var(--text-muted); text-align: right; }
+.si-li .ct { flex: 1; display: flex; gap: 4px; min-width: 0; }
+.si-li .rm { width: 16px; margin: 2px 0 0 2px; text-align: center; font-weight: 700; font-size: 12px; color: var(--text-muted); cursor: pointer; }
+.si-li .rm:hover { color: var(--danger); }
+.si-li .si-grip { margin-top: 0; }
+.si-li .si-in.bad { border-color: var(--danger); background: rgba(217,51,51,.15); }
+.si-empty { font-size: 10px; font-style: italic; color: var(--text-muted); margin: 3px 4px; }
+.si-lfoot { margin: 4px 0 0 2px; }
+.si-lfoot .si-btn { width: auto; }
+
+/* docs-only helpers living inside previews */
+.si-log { margin-top: 8px; border: 1px dashed rgba(255,255,255,.14); border-radius: 4px; padding: 4px 8px; font: 10.5px/1.5 var(--mono); color: var(--text-muted); min-height: 24px; max-height: 76px; overflow: hidden; background: rgba(0,0,0,.18); }
+.si-log b { color: var(--accent); font-weight: 600; }
+.si-note { font-size: 11px; color: var(--text-faint); margin: 6px 2px 0; font-family: var(--mono); }
+.si-mode { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 11px; color: var(--text-muted); }
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 1240px) { .demo-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 900px) {
+  .app { flex-direction: column; }
+  .side { position: sticky; top: 0; z-index: 20; width: 100%; height: auto; flex: none; border-right: 0; border-bottom: 1px solid var(--border); }
+  .brand { padding: 10px 14px 4px; display: flex; align-items: center; justify-content: space-between; }
+  .brand small { display: none; }
+  .menu-btn { display: inline-block; background: var(--bg-dark); border: 1px solid var(--border); color: var(--text); border-radius: 6px; padding: 4px 10px; font: 12px var(--sans); }
+  nav { display: none; max-height: 55vh; }
+  .side.open nav { display: block; }
+  main { padding: 0 16px 60px; }
+  .hero h2 { font-size: 26px; }
+  .card { padding: 14px 14px 16px; }
+  .two { grid-template-columns: 1fr; }
+  :root { --lbl: 112px; }
+}
+@media (max-width: 480px) { :root { --lbl: 96px; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="side" id="side">
+    <div class="brand">
+      <div><h1><i></i>EditorKit</h1><small>Sperlich · attribute reference</small></div>
+      <button class="menu-btn" id="menuBtn" type="button">Menu</button>
+    </div>
+    <div class="search"><input id="q" type="search" placeholder="Search attributes…" autocomplete="off" aria-label="Search attributes"></div>
+    <nav id="nav"></nav>
+  </aside>
+
+  <main>
+    <div class="wrap">
+      <div class="hero">
+        <h2>Sperlich <span>EditorKit</span></h2>
+        <p class="lead">Put attributes on your fields and methods. Add <code>[SInspector]</code> to the class. The whole inspector then renders in the Sperlich style. Every preview on this page is live and uses the real editor theme.</p>
+        <div class="hero-row">
+          <div class="install"><span id="installUrl">https://github.com/MrPifo/com.sperlich.editorkit.git</span><button class="si-btn si-inl" style="height:24px;margin:0" id="copyInstall" type="button">Copy</button></div>
+          <div class="pill"><span>Mock Play Mode</span><div class="si si-tog" id="playToggle" role="switch" aria-checked="false" tabindex="0" title="Drives the [ShowInPlayMode] / [ShowInEditMode] previews"></div></div>
+        </div>
+        <div class="stats"><div><b id="statAttr">–</b>attributes</div><div><b>2</b>assemblies</div><div><b>0</b>#if guards needed</div></div>
+      </div>
+      <div id="sections"></div>
+      <div class="empty" id="empty">No attribute matches your search.</div>
+    </div>
+  </main>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   Tiny DOM helper
+   ============================================================ */
+const h = (tag, props, ...kids) => {
+  const el = document.createElement(tag);
+  if (props) for (const [k, v] of Object.entries(props)) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k === "style") { if (typeof v === "string") el.style.cssText = v; else Object.assign(el.style, v); }
+    else if (k === "html") el.innerHTML = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (v === true) el.setAttribute(k, "");
+    else el.setAttribute(k, v);
+  }
+  for (const c of kids.flat(Infinity)) if (c != null && c !== false) el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return el;
+};
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const fmt = (v, int) => int ? String(Math.round(v)) : String(+(+v).toFixed(3));
+const hex = f => "#" + f.map(x => Math.round(x * 255).toString(16).padStart(2, "0")).join("");
+
+/* ============================================================
+   Palettes (floats copied 1:1 from SperlichEditorWidgets.TintColor.cs / .Tag.cs)
+   ============================================================ */
+const TINT = {
+  White: [.92,.92,.92], Black: [.08,.08,.09], Gray: [.55,.55,.55], LightGray: [.75,.75,.75], DarkGray: [.32,.32,.34],
+  Brown: [.55,.38,.27], Red: [.85,.35,.34], DarkRed: [.60,.20,.20], Orange: [.88,.58,.28], Amber: [.92,.70,.25],
+  Yellow: [.85,.78,.30], Lime: [.68,.82,.35], Green: [.42,.76,.48], DarkGreen: [.25,.50,.30], Teal: [.20,.65,.55],
+  Cyan: [.27,.69,.79], SkyBlue: [.40,.68,.90], Blue: [.35,.55,.90], DarkBlue: [.22,.32,.65], Indigo: [.40,.35,.75],
+  Purple: [.58,.45,.82], Violet: [.68,.45,.85], Magenta: [.82,.35,.75], Pink: [.85,.45,.65], Maroon: [.50,.25,.32],
+};
+const TAGC = {
+  Gray: [.55,.55,.55], Blue: [.35,.55,.9], Cyan: [.27,.69,.79], Teal: [.20,.65,.55], Green: [.42,.76,.48],
+  Yellow: [.85,.75,.30], Orange: [.88,.58,.28], Red: [.85,.38,.36], Pink: [.85,.45,.65], Purple: [.58,.45,.82],
+};
+const tint = n => hex(TINT[n]);
+const tagc = n => hex(TAGC[n]);
+
+/* ============================================================
+   Drag helper + global mock play mode
+   ============================================================ */
+function dragger(el, fn, o = {}) {
+  el.addEventListener("pointerdown", e => {
+    if (e.button !== 0) return;
+    e.preventDefault(); el.setPointerCapture(e.pointerId);
+    o.start && o.start(e);
+    fn(e);
+    const mv = ev => fn(ev);
+    const up = ev => { el.removeEventListener("pointermove", mv); el.removeEventListener("pointerup", up); el.removeEventListener("pointercancel", up); o.end && o.end(ev); };
+    el.addEventListener("pointermove", mv); el.addEventListener("pointerup", up); el.addEventListener("pointercancel", up);
+  });
+}
+const Play = {
+  on: false, subs: [],
+  set(v) { this.on = v; this.subs.forEach(f => f(v)); },
+  bind(f) { this.subs.push(f); f(this.on); },
+};
+
+/* ============================================================
+   Widgets — DOM replicas of SperlichEditorWidgets
+   ============================================================ */
+const W = {};
+
+W.panel = (...kids) => h("div", { class: "si si-panel" }, kids);
+
+/** Label + control row. o: tags[[text,hex]], suffix, overlay, inline[{label,fn}], ovr, ro, dis, tint, tintBg, tip */
+W.row = (label, ctl, o = {}) => {
+  const lbl = h("div", { class: "si-lbl", title: o.tip || null }, label);
+  if (o.tint) lbl.style.color = o.tint;
+  const host = h("div", { class: "si-ctl" }, ctl);
+  if (o.suffix != null) {
+    host.append(h("span", { class: "si-suf" + (o.overlay ? " ov" : "") }, o.suffix));
+    if (o.overlay) host.style.position = "relative";
+  }
+  (o.tags || []).forEach(t => host.append(W.tag(t[0], t[1])));
+  (o.inline || []).forEach(b => host.append(W.inlineBtn(b.label, b.fn)));
+  const row = h("div", { class: "si-row" + (o.ovr ? " ovr" : "") + (o.ro ? " ro" : "") + (o.dis ? " dis" : "") },
+    lbl, host);
+  if (o.tint && o.tintBg) { const i = host.querySelector(".si-in"); if (i) i.style.background = `color-mix(in srgb, var(--bg-dark) 78%, ${o.tint} 22%)`; }
+  return row;
+};
+
+W.toggle = (value, onChange, accent) => {
+  const t = h("div", { class: "si-tog" + (value ? " on" : ""), role: "switch", tabindex: "0", "aria-checked": String(!!value) });
+  if (accent) t.style.setProperty("background", value ? accent : "");
+  const flip = () => {
+    const v = !t.classList.contains("on"); t.classList.toggle("on", v); t.setAttribute("aria-checked", String(v));
+    if (accent) t.style.background = v ? accent : ""; onChange && onChange(v);
+  };
+  t.addEventListener("click", flip);
+  t.addEventListener("keydown", e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); flip(); } });
+  t.set = v => { t.classList.toggle("on", v); if (accent) t.style.background = v ? accent : ""; };
+  t.get = () => t.classList.contains("on");
+  return t;
+};
+
+W.field = ({ value = 0, int = false, onChange } = {}) => {
+  const inp = h("input", { class: "si-in", value: fmt(value, int), inputmode: "decimal" });
+  inp.addEventListener("change", () => { const n = parseFloat(inp.value); if (!isNaN(n)) onChange && onChange(int ? Math.round(n) : n); else inp.value = fmt(value, int); });
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); });
+  return inp;
+};
+
+W.text = (value = "", onChange) => {
+  const i = h("input", { class: "si-in", value, type: "text", spellcheck: "false" });
+  i.addEventListener("input", () => onChange && onChange(i.value));
+  return i;
+};
+
+W.dropdown = (opts, value, onChange) => {
+  const s = h("select", { class: "si-in si-sel" }, opts.map(o => h("option", { value: o, selected: o === value }, o)));
+  s.addEventListener("change", () => onChange && onChange(s.value));
+  return s;
+};
+
+W.obj = (type, assigned = null, onChange) => {
+  let cur = assigned;
+  const el = h("div", { class: "si-obj", tabindex: "0" });
+  const draw = () => { el.className = "si-obj" + (cur ? " set" : ""); el.replaceChildren(h("i"), cur ? `${cur} (${type})` : `None (${type})`, h("em", null, "◎")); };
+  const flip = () => { cur = cur ? null : "Player"; draw(); onChange && onChange(cur); };
+  el.addEventListener("click", flip); el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } });
+  draw(); el.set = v => { cur = v; draw(); };
+  return el;
+};
+
+/** Drag number field: 6-dot grip + input (+ spinner for ints). */
+W.num = ({ value = 0, min = -Infinity, max = Infinity, step = 1, int = false, spinner, onChange } = {}) => {
+  let v = value; const el = h("div", { class: "si-num" });
+  const inp = h("input", { class: "si-in", value: fmt(v, int), inputmode: "decimal" });
+  const set = (nv, emit = true) => { nv = clamp(int ? Math.round(nv) : nv, min, max); v = nv; inp.value = fmt(v, int); if (emit && onChange) onChange(v); };
+  inp.addEventListener("change", () => { const n = parseFloat(inp.value); set(isNaN(n) ? v : n); });
+  inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); });
+  const grip = h("div", { class: "si-grip", title: "Drag to change" });
+  let sx = 0, sv = 0;
+  dragger(grip, e => {
+    const per = isFinite(max - min) ? (max - min) / 220 : step * (int ? .25 : .05);
+    set(sv + (e.clientX - sx) * Math.max(per, int ? step * .25 : 0));
+  }, { start: e => { sx = e.clientX; sv = v; } });
+  el.append(grip, inp);
+  if (int && spinner !== false) {
+    el.append(h("div", { class: "si-spin" },
+      h("span", { onclick: () => set(v + step) }, "▴"), h("span", { onclick: () => set(v - step) }, "▾")));
+  }
+  el.set = x => set(x, false); el.get = () => v;
+  return el;
+};
+
+/** Range slider (design C). */
+W.slider = ({ min = 0, max = 1, value = 0, int = false, accent, onChange, fieldWidth } = {}) => {
+  let v = value; const root = h("div", { class: "si-slider" });
+  if (accent) root.style.setProperty("--acc", accent);
+  const area = h("div", { class: "si-sla" }), travel = h("div", { class: "si-travel" });
+  const fill = h("div", { class: "si-fill" }), handle = h("div", { class: "si-handle" });
+  travel.append(h("div", { class: "si-track" }), fill);
+  const steps = Math.round(max - min);
+  if (int && steps >= 1 && steps <= 40) for (let s = 0; s <= steps; s++) travel.append(h("div", { class: "si-tick", style: { left: (s / steps * 100) + "%" } }));
+  travel.append(handle); area.append(travel);
+  const num = W.num({ value: v, min, max, step: int ? 1 : (max - min) / 100, int, spinner: false, onChange: x => apply(x, false) });
+  if (fieldWidth) num.style.width = fieldWidth + "px";
+  const draw = () => { const t = max > min ? clamp((v - min) / (max - min), 0, 1) : 0; fill.style.width = handle.style.left = (t * 100) + "%"; };
+  const apply = (x, syncNum = true) => { v = clamp(int ? Math.round(x) : x, min, max); draw(); if (syncNum) num.set(v); onChange && onChange(v); };
+  dragger(area, e => { const r = travel.getBoundingClientRect(); apply(min + clamp((e.clientX - r.left) / r.width, 0, 1) * (max - min)); });
+  root.append(area, num); draw();
+  root.set = x => { v = clamp(x, min, max); draw(); num.set(v); }; root.get = () => v;
+  return root;
+};
+
+/** Dual-handle min/max slider for Vector2. */
+W.minmax = ({ min = 0, max = 10, lo = 2, hi = 8, int = false, accent, onChange } = {}) => {
+  const root = h("div", { class: "si-slider mm" }); if (accent) root.style.setProperty("--acc", accent);
+  const area = h("div", { class: "si-sla", style: { minWidth: "60px" } }), travel = h("div", { class: "si-travel" });
+  const band = h("div", { class: "si-band" }), hl = h("div", { class: "si-handle" }), hh = h("div", { class: "si-handle" });
+  travel.append(h("div", { class: "si-track" }), band, hl, hh); area.append(travel);
+  const nl = W.num({ value: lo, min, max, int, spinner: false, onChange: x => setLo(x, false) });
+  const nh = W.num({ value: hi, min, max, int, spinner: false, onChange: x => setHi(x, false) });
+  const pos = x => ((x - min) / (max - min) * 100) + "%";
+  const draw = () => { band.style.left = pos(lo); band.style.width = ((hi - lo) / (max - min) * 100) + "%"; hl.style.left = pos(lo); hh.style.left = pos(hi); };
+  const emit = () => { draw(); nl.set(lo); nh.set(hi); onChange && onChange(lo, hi); };
+  const setLo = (x, s = true) => { lo = clamp(int ? Math.round(x) : x, min, hi); s ? emit() : (draw(), onChange && onChange(lo, hi)); };
+  const setHi = (x, s = true) => { hi = clamp(int ? Math.round(x) : x, lo, max); s ? emit() : (draw(), onChange && onChange(lo, hi)); };
+  let mode = "", off = 0;
+  const val = e => { const r = travel.getBoundingClientRect(); return min + clamp((e.clientX - r.left) / r.width, 0, 1) * (max - min); };
+  dragger(area, e => {
+    const x = val(e);
+    if (mode === "lo") setLo(x); else if (mode === "hi") setHi(x);
+    else if (mode === "band") { const w = hi - lo; let nlo = clamp(x - off, min, max - w); lo = int ? Math.round(nlo) : nlo; hi = lo + w; emit(); }
+  }, { start: e => {
+    const x = val(e), t = e.target;
+    if (t === band) { mode = "band"; off = x - lo; }
+    else mode = Math.abs(x - lo) <= Math.abs(x - hi) ? "lo" : "hi";
+  } });
+  root.append(area, nl, nh); draw();
+  return root;
+};
+
+/** Segmented control. accents: per-segment colours; multi: flags mode (value = array of selected indices). */
+W.seg = ({ labels, value = 0, accent = "var(--accent)", accents, perRow = 0, multi = false, onChange }) => {
+  let sel = multi ? new Set(value) : value;
+  const root = h("div", { class: "si-seg" + (multi ? " si-flags" : "") });
+  const segs = [];
+  const draw = () => segs.forEach((s, i) => s.classList.toggle("on", multi ? sel.has(i) : sel === i));
+  const mk = i => {
+    const s = h("div", { class: "si-sg", role: "button", tabindex: "0", style: `--a:${(accents && accents[i]) || accent}` }, labels[i]);
+    const go = () => { if (multi) { sel.has(i) ? sel.delete(i) : sel.add(i); onChange && onChange([...sel]); } else { sel = i; onChange && onChange(i); } draw(); };
+    s.addEventListener("click", go); s.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    segs.push(s); return s;
+  };
+  const per = perRow > 0 && labels.length > perRow ? perRow : labels.length;
+  for (let r = 0; r < labels.length; r += per) root.append(h("div", { class: "si-segrow" }, labels.slice(r, r + per).map((_, k) => mk(r + k))));
+  draw(); return root;
+};
+
+W.knob = ({ min = 0, max = 1, value = 0, dia = 42, int = false, accent, onChange, unit = "" } = {}) => {
+  let v = value; const R = dia / 2 - 3, C = dia / 2, acc = accent || "var(--accent)";
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", dia); svg.setAttribute("height", dia); svg.setAttribute("class", "si-knob");
+  const wrap = h("div", { class: "si-knobrow" });
+  const fld = W.field({ value: v, int, onChange: x => { v = clamp(x, min, max); draw(); fld.value = fmt(v, int); onChange && onChange(v); } });
+  const draw = () => {
+    const deg = clamp((v - min) / (max - min), 0, 1) * 360, rad = (deg - 90) * Math.PI / 180;
+    const hx = C + Math.cos(rad) * R, hy = C + Math.sin(rad) * R;
+    let arc = "";
+    if (deg > .01) {
+      if (deg >= 359.9) arc = `<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="${acc}" stroke-width="3"/>`;
+      else arc = `<path d="M ${C} ${C - R} A ${R} ${R} 0 ${deg > 180 ? 1 : 0} 1 ${hx} ${hy}" fill="none" stroke="${acc}" stroke-width="3"/>`;
+    }
+    svg.innerHTML = `<circle cx="${C}" cy="${C}" r="${R}" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1.5"/>${arc}<circle cx="${hx}" cy="${hy}" r="4" fill="${acc}"/>`;
+  };
+  dragger(svg, e => {
+    const r = svg.getBoundingClientRect(); const dx = e.clientX - (r.left + C), dy = e.clientY - (r.top + C);
+    if (dx * dx + dy * dy < 1e-6) return;
+    let deg = (Math.atan2(dy, dx) * 180 / Math.PI + 90 + 360) % 360;
+    v = clamp(min + deg / 360 * (max - min), min, max); if (int) v = Math.round(v);
+    fld.value = fmt(v, int); draw(); onChange && onChange(v);
+  });
+  draw(); wrap.append(svg, fld); if (unit) wrap.append(h("span", { class: "si-suf" }, unit));
+  return wrap;
+};
+
+W.stepper = ({ step = 1, min = -Infinity, max = Infinity, value = 0, int = true, onChange } = {}) => {
+  let v = value; const root = h("div", { class: "si-step" });
+  const inp = h("input", { class: "si-in", value: fmt(v, int) });
+  const set = x => { v = clamp(int ? Math.round(x) : x, min, max); inp.value = fmt(v, int); onChange && onChange(v); };
+  inp.addEventListener("change", () => { const n = parseFloat(inp.value); set(isNaN(n) ? v : n); });
+  const b = (g, sgn) => h("div", { class: "si-stb", onclick: e => set(v + sgn * step * (e.shiftKey ? 10 : 1)), title: "Shift-click = 10×" }, g);
+  root.append(b("-", -1), inp, b("+", 1)); return root;
+};
+
+/** Read-only progress bar; returns element with .set(v) and .range(lo,hi). */
+W.progress = ({ value = 0, min = 0, max = 1, color, height = 18, segmented = false, showValue = true, percent = false } = {}) => {
+  const hgt = Math.max(2, height), tr = clamp(Math.floor(hgt / 2), 1, 3), fr = clamp(Math.floor(hgt / 2), 1, 2);
+  const el = h("div", { class: "si-pb", style: { height: hgt + "px", borderRadius: tr + "px" } });
+  const f = h("div", { class: "si-pbf", style: { borderRadius: fr + "px" } }); el.append(f);
+  if (color) f.style.background = color;
+  let ov = null; if (showValue) { ov = h("div", { class: "ov" }); el.append(ov); }
+  if (segmented) for (let s = 1; s < 10; s++) el.append(h("div", { class: "notch", style: { left: (s * 10) + "%" } }));
+  let lo = min, hi = max, cur = value;
+  const nf = x => Number.isInteger(x) ? String(x) : String(+x.toFixed(2));
+  const draw = () => {
+    const span = hi - lo, t = span > 1e-4 ? clamp((cur - lo) / span, 0, 1) : 0;
+    f.style.width = (t * 100) + "%";
+    f.style.background = cur > hi + 1e-4 ? "#d95940" : (color || "");
+    if (ov) ov.textContent = percent ? Math.round((span > 1e-4 ? (cur - lo) / span : 0) * 100) + "%" : `${nf(cur)} / ${nf(hi)}`;
+  };
+  el.set = v => { cur = v; draw(); }; el.range = (a, b) => { lo = a; hi = b; draw(); }; draw();
+  return el;
+};
+
+W.tag = (label, color) => h("span", { class: "si-tag", style: { background: color } }, label);
+W.msg = (text, kind = "info") => h("div", { class: "si-msg " + kind }, h("b", null, { info: "ℹ", warn: "⚠", error: "✕" }[kind]), h("span", null, text));
+W.header = (text, tight) => h("div", { class: "si-header" + (tight ? " tight" : "") }, text);
+W.space = () => h("div", { class: "si-space" });
+
+W.box = (o, ...kids) => {
+  const sb = o.sidebar ? h("div", { class: "si-sb", style: { background: o.sidebar } }) : null;
+  let root, body;
+  if (o.collapsable) {
+    let open = o.expanded !== false;
+    const arrow = h("span", { class: "si-arrow" }, open ? "▼" : "▶");
+    if (sb) { sb.style.margin = "-4px 6px -4px -6px"; }
+    const head = h("div", { class: "si-chev" }, sb, arrow, h("span", { class: "si-chevt" }, o.title || "Box"));
+    body = h("div", { class: "si-bbody" }); body.style.display = open ? "" : "none";
+    head.addEventListener("click", () => { open = !open; body.style.display = open ? "" : "none"; arrow.textContent = open ? "▼" : "▶"; });
+    root = h("div", { class: "si-box" }, head, body);
+  } else if (o.title) {
+    body = h("div", { class: "si-bbody" });
+    root = h("div", { class: "si-box" }, h("div", { class: "si-btitle" }, sb, h("span", null, o.title.toUpperCase())), body);
+  } else {
+    body = h("div", { class: "si-bbody", style: { padding: "3px 3px 4px" } });
+    root = h("div", { class: "si-box" }, body);
+    if (sb) root = h("div", { class: "si-sbwrap" }, sb, root);
+  }
+  body.append(...kids.flat());
+  if (o.readOnly) body.style.cssText += ";opacity:.5;pointer-events:none";
+  root.body = body; return root;
+};
+
+W.subbox = (o, ...kids) => {
+  const holder = h("div", { class: "si-sub" });
+  const content = h("div"); const frame = h("div", { class: "si-subf" + (o.title ? "" : " nolegend") }, content);
+  holder.append(frame); content.append(...kids.flat());
+  if (o.title) {
+    const legend = h("div", { class: "si-legend" });
+    const text = h("span", null, o.title.toUpperCase());
+    if (o.collapsable) {
+      let open = o.expanded !== false; const ar = h("span", { class: "ar", style: o.accent ? `color:${o.accent}` : "" }, open ? "▾" : "▸");
+      legend.classList.add("click"); legend.append(ar, text);
+      const apply = () => { content.style.display = open ? "" : "none"; frame.style.paddingBottom = open ? "3px" : "0"; ar.textContent = open ? "▾" : "▸"; };
+      apply(); legend.addEventListener("click", () => { open = !open; apply(); });
+    } else {
+      if (o.accent) legend.append(h("i", { class: "dot", style: { background: o.accent } }));
+      legend.append(text);
+    }
+    holder.append(legend);
+  }
+  return holder;
+};
+
+W.hline = ({ label, color, style = "solid", align = "center", placement = "inline" } = {}) => {
+  const c = color || "rgba(255,255,255,.15)";
+  const seg = (grow, fixed) => h("div", { class: "seg", style: { borderTop: `1px ${style} ${c}`, flex: grow ? "1" : `0 0 ${fixed}px` } });
+  if (!label) return h("div", { class: "si-hl" }, seg(true));
+  if (placement === "above") return h("div", { class: "si-hl above" }, h("div", { class: "lb", style: { alignSelf: { left: "flex-start", right: "flex-end", center: "center" }[align] } }, label), seg(true));
+  const lb = h("div", { class: "lb" }, label);
+  if (align === "left") return h("div", { class: "si-hl" }, seg(false, 12), lb, seg(true));
+  if (align === "right") return h("div", { class: "si-hl" }, seg(true), lb, seg(false, 12));
+  return h("div", { class: "si-hl" }, seg(true), lb, seg(true));
+};
+
+W.btn = (text, o = {}) => {
+  const size = o.size || "full", hg = o.height || "normal";
+  const cls = "si-btn " + ({ small: "sm", normal: "nm", large: "lg", full: "full" }[size]) + (hg === "small" ? " h16" : hg === "large" || hg === "full" ? " h28" : "") + (o.accent ? " acc" : "");
+  const b = h("button", { class: cls, type: "button", onclick: o.onClick }, o.icon ? h("span", { class: "ic" }, o.icon) : null, text);
+  const anchor = { left: "flex-start", center: "center", right: "flex-end" }[o.anchor || "center"];
+  return h("div", { class: "si-btnrow", style: { justifyContent: size === "full" ? "stretch" : anchor } }, b);
+};
+W.inlineBtn = (label, fn) => h("button", { class: "si-btn si-inl", type: "button", onclick: fn }, label);
+W.btngroup = items => h("div", { class: "si-bg" }, items.map(it => h("div", { class: "si-bgs", role: "button", tabindex: "0", onclick: it.fn }, it.icon ? h("span", null, it.icon) : null, it.label)));
+
+W.tabs = (defs, persist) => {
+  let cur = 0; const bar = h("div", { class: "si-tabbar" }), root = h("div", { class: "si-tabs" }, bar);
+  const bodies = defs.map((d, i) => { const b = h("div", { class: "si-tabbody" }, d.kids); root.append(b); return b; });
+  const btns = defs.map((d, i) => { const t = h("div", { class: "si-tab", role: "tab", tabindex: "0" }, h("b", null, d.name), h("u")); t.addEventListener("click", () => sel(i)); bar.append(t); return t; });
+  const sel = i => { cur = i; btns.forEach((b, k) => b.classList.toggle("on", k === i)); bodies.forEach((b, k) => b.style.display = k === i ? "" : "none"); };
+  sel(0); return root;
+};
+
+W.log = () => {
+  const el = h("div", { class: "si-log" }, "demo log ▸ (interact with the controls above)");
+  let lines = [];
+  el.add = msg => { lines.push(msg); lines = lines.slice(-3); el.replaceChildren(...lines.map(l => h("div", null, h("b", null, "▸ "), l))); };
+  return el;
+};
+W.note = t => h("div", { class: "si-note" }, t);
+
+W.list = ({ title, items, accent, cols = 1, mk, add }) => {
+  const root = h("div", { class: "si-list" });
+  if (accent) root.style.setProperty("--acc", accent);
+  const badge = h("span", { class: "si-idx" }), body = h("div", { class: "si-lbody" }), rows = h("div");
+  const head = h("div", { class: "si-lhead" }, h("span", { class: "si-arrow" }, "▼"), h("span", { class: "ttl" }, title), badge, h("span", { class: "sp" }),
+    h("div", { class: "plus", onclick: () => { add(items); draw(); } }, "+"));
+  const foot = h("div", { class: "si-lfoot" }, W.btn("+ Add", { size: "small", accent: true, onClick: () => { add(items); draw(); } }).firstChild);
+  body.append(rows, foot); root.append(head, body);
+  const draw = () => {
+    badge.textContent = items.length; rows.replaceChildren();
+    if (!items.length) { rows.append(h("div", { class: "si-empty" }, "Empty")); return; }
+    items.forEach((it, i) => rows.append(h("div", { class: "si-li" },
+      h("div", { class: "si-grip" }), h("div", { class: "no" }, i), h("div", { class: "ct" }, mk(it, i, draw)),
+      h("div", { class: "rm", title: "Remove", onclick: () => { items.splice(i, 1); draw(); } }, "×"))));
+  };
+  draw(); return root;
+};
+
+/* ============================================================
+   Code highlighter (tiny)
+   ============================================================ */
+const KW = "public|private|protected|internal|class|struct|enum|interface|static|readonly|const|void|float|int|bool|string|double|long|byte|char|object|new|null|true|false|this|var|using|namespace|abstract|virtual|override|params|nameof|typeof|return|if|else|foreach|for|in|out|ref";
+const TOK = new RegExp(`(\\/\\/[^\\n]*)|("(?:[^"\\\\\\n]|\\\\.)*")|\\b(${KW})\\b|\\b([A-Z][A-Za-z0-9_]*)\\b|(\\b\\d+(?:\\.\\d+)?f?\\b)`, "g");
+const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+function highlight(src) {
+  let out = "", last = 0, m; TOK.lastIndex = 0;
+  while ((m = TOK.exec(src))) {
+    out += esc(src.slice(last, m.index)); last = TOK.lastIndex;
+    const cls = m[1] ? "c" : m[2] ? "s" : m[3] ? "k" : m[4] ? "t" : "n";
+    out += `<span class="${cls}">${esc(m[0])}</span>`;
+  }
+  return out + esc(src.slice(last));
+}
+async function copyText(text, btn) {
+  try { await navigator.clipboard.writeText(text); }
+  catch { const ta = h("textarea", { style: "position:fixed;opacity:0" }, text); document.body.append(ta); ta.select(); try { document.execCommand("copy"); } catch {} ta.remove(); }
+  if (btn) { const o = btn.textContent; btn.textContent = "Copied"; setTimeout(() => btn.textContent = o, 1100); }
+}
+const codeBox = src => {
+  const pre = h("pre"); pre.innerHTML = highlight(src.replace(/^\n+|\s+$/g, ""));
+  const b = h("button", { class: "copy", type: "button", onclick: e => copyText(src.trim(), e.currentTarget) }, "Copy");
+  return h("div", { class: "codebox" }, pre, b);
+};
+
+/* ============================================================
+   Content
+   ============================================================ */
+const GROUPS = [
+  { id: "core", title: "Core", blurb: "Switch the whole inspector over." },
+  { id: "layout", title: "Layout & grouping", blurb: "Rows, boxes, tabs, separators." },
+  { id: "appearance", title: "Field appearance", blurb: "Labels, colours, tags, hints." },
+  { id: "controls", title: "Value controls", blurb: "Replace the default number / enum field." },
+  { id: "logic", title: "Conditional logic", blurb: "Show, hide, enable and react." },
+  { id: "methods", title: "Methods & live values", blurb: "Buttons and read-only displays." },
+  { id: "types", title: "Serializable collections", blurb: "Dictionary and set for Unity." },
+];
+const ATTRS = [];
+const A = (id, g, name, o) => ATTRS.push({ id, g, name, ...o });
+
+/* -------- CORE -------- */
+A("sinspector", "core", "SInspector", {
+  targets: ["class"], sig: ["[SInspector(bool showScript = false)]"],
+  desc: "Put it on a MonoBehaviour or ScriptableObject. The whole inspector then renders in the Sperlich style: pill toggles, flat dropdowns, drag-number fields, dark theme.",
+  notes: [
+    "Without <code>[SInspector]</code> the class keeps Unity's default inspector. A type with its own <code>[CustomEditor]</code> is never touched.",
+    "All EditorKit attributes are <code>[Conditional(\"UNITY_EDITOR\")]</code>. Player builds drop them from the IL, so you never need <code>#if UNITY_EDITOR</code>.",
+    "The \"Script\" row is hidden by default. Bring it back with <code>showScript: true</code> or <b>Tools ▸ Sperlich ▸ SInspector ▸ Show Script Field</b>.",
+    "Multi-object editing and prefab overrides work (blue bar, bold label, Apply/Revert menu). <code>[Header]</code>, <code>[Space]</code>, <code>[Tooltip]</code>, <code>[Range]</code>, <code>[TextArea]</code> and <code>[Multiline]</code> are honoured.",
+    "<code>[SerializeReference]</code> lists get a type picker on <b>+</b>.",
+  ],
+  code: `using Sperlich.EditorKit;
+
+[SInspector]
+public class EnemySpawner : MonoBehaviour {
+    [Header("Spawning")]
+    [SerializeField, Range(0f, 10f)] float spawnRate = 2f;
+    [SerializeField] SpawnMode mode;
+    [SerializeField] bool enabledOnStart = true;
+    [SerializeField] Transform spawnPoint;
+}`,
+  demo: () => W.panel(
+    W.header("Spawning", true),
+    W.row("Spawn Rate", W.slider({ min: 0, max: 10, value: 2 }), { ovr: true, tip: "Blue bar = prefab override" }),
+    W.row("Mode", W.dropdown(["Wave", "Endless", "Boss"], "Wave")),
+    W.row("Enabled On Start", W.toggle(true)),
+    W.row("Spawn Point", W.obj("Transform")),
+    W.note("Row 1 shows the prefab-override bar.")),
+});
+
+/* -------- LAYOUT -------- */
+A("srow", "layout", "SRow", {
+  targets: ["field", "property"], sig: ["[SRow(string group = \"\")]"],
+  desc: "Puts adjacent scalar fields on one horizontal line. Each field shows its caption on top of the cell.",
+  notes: ["<code>[ShowIf]</code> / <code>[HideIf]</code> on a later field of the row hides only that cell. On the first field it hides the whole row.", "Only bool, int, float, string, enum and colour fields inline. Wider types (vectors, references, lists) keep their own row.",
+    "Fields with the same <code>group</code> key that sit next to each other share a line. An empty key groups every adjacent <code>[SRow]</code> field.",
+    "A run is capped at 6 cells per visible line, then it wraps."],
+  code: `[SRow] public int marginLeft;
+[SRow] public int marginRight;
+[SRow] public int marginTop;
+[SRow] public int marginBottom;`,
+  demo: () => {
+    const cell = (cap, v) => h("div", { style: "flex:1 1 0;min-width:58px;margin-right:6px;margin-bottom:2px;display:flex;align-items:center" },
+      h("span", { style: "font-size:11px;color:var(--text-2);margin-right:6px;white-space:nowrap" }, cap), W.num({ value: v, int: true, spinner: false }));
+    return W.panel(h("div", { style: "margin:2px 0 2px 3px;display:flex;flex-wrap:wrap" }, cell("Margin Left", 8), cell("Margin Right", 8), cell("Margin Top", 4), cell("Margin Bottom", 4)));
+  },
+});
+
+A("box", "layout", "Box", {
+  targets: ["field", "property"],
+  sig: ["[Box(string label = null, bool collapsable = false, bool expanded = true, bool readOnly = false,", "     string sidebarColor = null, TintColor sidebarTint = None, float sidebarR…A,", "     string sidebarMember = null)]"],
+  desc: "The field opens a box. Every following field goes inside until the next <code>[Box]</code>, the next <code>[Header]</code> or an <code>[EndGroup]</code>.",
+  notes: ["Boxes do not nest. Use <code>[SubBox]</code> for a group inside a box.",
+    "<code>collapsable</code> gives a chevron header. The open state is remembered per inspector in EditorPrefs.",
+    "<code>readOnly</code> greys out everything inside. The sidebar is a coloured bar on the left edge: hex, <code>TintColor</code> or raw RGBA.",
+    "<code>sidebarMember</code> names a member that returns a <code>Color</code>, <code>TintColor</code> or hex string. It wins over the static colour and is re-read live, e.g. to colour a box by an enum."],
+  code: `[Box("Movement", sidebarTint: TintColor.Teal)]
+public float speed = 4.5f;
+public float turnRate = 90f;          // still in the box
+
+[Box("Combat", collapsable: true, sidebarTint: TintColor.Orange)]
+public int damage = 10;
+public float fireRate = 2f;
+
+[Box("Debug", collapsable: true, expanded: false)]
+public bool drawGizmos;`,
+  demo: () => W.panel(
+    W.box({ title: "Movement", sidebar: tint("Teal") }, W.row("Speed", W.num({ value: 4.5 })), W.row("Turn Rate", W.num({ value: 90 }))),
+    W.box({ title: "Combat", collapsable: true, sidebar: tint("Orange") }, W.row("Damage", W.num({ value: 10, int: true })), W.row("Fire Rate", W.num({ value: 2 }))),
+    W.box({ title: "Debug", collapsable: true, expanded: false }, W.row("Draw Gizmos", W.toggle(false)))),
+});
+
+A("endgroup", "layout", "EndGroup", {
+  targets: ["field"], sig: ["[EndGroup]"],
+  desc: "Closes the current <code>[Box]</code> (and an open <code>[SubBox]</code>). Put it on the first field that should be outside again. No new box needed.",
+  code: `[Box("Audio")]
+public float volume = 0.8f;
+public bool muted;
+
+[EndGroup]
+public string playerName;             // outside the box`,
+  demo: () => W.panel(
+    W.box({ title: "Audio" }, W.row("Volume", W.slider({ min: 0, max: 1, value: .8 })), W.row("Muted", W.toggle(false))),
+    W.row("Player Name", W.text("Pifo"))),
+});
+
+A("subbox", "layout", "SubBox", {
+  targets: ["field"],
+  sig: ["[SubBox(string label = null, bool collapsable = false, bool expanded = true,", "        string sidebarColor = null, TintColor sidebarTint = None,", "        bool flat = false, string summary = null)]"],
+  desc: "A smaller box inside a <code>[Box]</code> (or on its own). It looks like a fieldset: a thin outline with the label sitting on the top border.",
+  notes: ["The run ends at the next <code>[SubBox]</code>, an <code>[EndSubBox]</code>, or where the surrounding <code>[Box]</code> ends. Sub-boxes do not nest.",
+    "The accent colour is a dot on the legend, or the ▾ arrow when collapsable.",
+    "<code>flat</code> draws a flat header row with indented fields instead of the outline.",
+    "<code>summary</code> names a string member shown right-aligned in the header, e.g. the values inside. Useful on a collapsed group.",
+    "A sub-box hides itself when every field inside is hidden by <code>[ShowIf]</code> / <code>[HideIf]</code>."],
+  code: `[Box("Audio")]
+[SubBox("Music", sidebarTint: TintColor.Cyan)]
+public float musicVolume = 0.6f;
+public bool loop = true;
+
+[SubBox("SFX", collapsable: true)]
+public float sfxVolume = 1f;
+public int maxVoices = 16;
+
+[SubBox("Advanced", collapsable: true, flat: true, summary: nameof(AdvancedSummary))]
+public int sampleRate = 48000;
+string AdvancedSummary => $"{sampleRate} Hz";`,
+  demo: () => W.panel(W.box({ title: "Audio" },
+    W.subbox({ title: "Music", accent: tint("Cyan") }, W.row("Music Volume", W.slider({ min: 0, max: 1, value: .6 })), W.row("Loop", W.toggle(true))),
+    W.subbox({ title: "SFX", collapsable: true, accent: tint("Cyan") }, W.row("Sfx Volume", W.slider({ min: 0, max: 1, value: 1 })), W.row("Max Voices", W.num({ value: 16, int: true }))),
+    h("div", { style: "display:flex;align-items:center;height:20px;padding:0 6px;margin-top:3px;background:var(--bg-step);border-radius:3px;font-size:11px;color:var(--text-2)" },
+      h("span", { style: "width:12px;font-size:10px;color:var(--text-muted)" }, "▸"), "Advanced",
+      h("span", { style: "margin-left:auto;font-size:10px;color:var(--text-muted)" }, "48000 Hz")))),
+});
+
+A("endsubbox", "layout", "EndSubBox", {
+  targets: ["field"], sig: ["[EndSubBox]"],
+  desc: "Closes the current <code>[SubBox]</code>. The field stays in the outer <code>[Box]</code>. Put it on the first field after the group.",
+  code: `[Box("Audio")]
+[SubBox("Music")]
+public float musicVolume;
+
+[EndSubBox]
+public bool muteAll;                  // back in the outer Box`,
+  demo: () => W.panel(W.box({ title: "Audio" },
+    W.subbox({ title: "Music" }, W.row("Music Volume", W.slider({ min: 0, max: 1, value: .6 }))),
+    W.row("Mute All", W.toggle(false)))),
+});
+
+A("tabgroup", "layout", "TabGroup", {
+  targets: ["field"], sig: ["[TabGroup(string tab, string group = \"Tabs\")]"],
+  desc: "Fields that share a <code>group</code> become one tab bar with one tab per distinct <code>tab</code> name, in first-seen order.",
+  notes: ["The bar appears where the first field of the group is declared. Fields do not need to be contiguous.", "The selected tab is remembered per group and type."],
+  code: `[TabGroup("Movement")] public float moveSpeed = 5f;
+[TabGroup("Movement")] public float turnSpeed = 120f;
+[TabGroup("Combat")]   public int damage = 10;
+[TabGroup("Combat")]   public float range = 6f;`,
+  demo: () => W.panel(W.tabs([
+    { name: "Movement", kids: [W.row("Move Speed", W.num({ value: 5 })), W.row("Turn Speed", W.num({ value: 120 }))] },
+    { name: "Combat", kids: [W.row("Damage", W.num({ value: 10, int: true })), W.row("Range", W.num({ value: 6 }))] }])),
+});
+
+A("hline", "layout", "HLine", {
+  targets: ["field", "property"], multi: true,
+  sig: ["[HLine(string label = null, string color = null, LineStyle style = Solid, TintColor tint = None)]",
+    "[HLine(string label, HLineAlign align, HLinePlacement placement = Inline, LineStyle style = Solid, string color = null, TintColor tint = None)]"],
+  desc: "A separator line above the field. It can carry a small label. Stack several for more lines.",
+  notes: ["<code>Inline</code> interrupts the line with the label. <code>Above</code> puts it on top of a full line."],
+  code: `[HLine]
+[HLine("Inline centered")]
+[HLine("Left", HLineAlign.Left)]
+[HLine("Right", HLineAlign.Right)]
+[HLine("Above", HLineAlign.Left, HLinePlacement.Above)]
+[HLine("Dashed", "#ff6b6b", LineStyle.Dashed)]
+[HLine("Dotted", tint: TintColor.Teal, style: LineStyle.Dotted)]
+public int value;`,
+  demo: () => W.panel(W.hline(), W.hline({ label: "Inline centered" }), W.hline({ label: "Left", align: "left" }), W.hline({ label: "Right", align: "right" }),
+    W.hline({ label: "Above", align: "left", placement: "above" }), W.hline({ label: "Dashed", color: "#ff6b6b", style: "dashed" }),
+    W.hline({ label: "Dotted", color: tint("Teal"), style: "dotted" }), W.row("Value", W.num({ value: 3, int: true }))),
+});
+
+A("sminmax", "layout", "SMinMax", {
+  targets: ["Vector2", "Vector2Int"], sig: ["[SMinMax(float min, float max)]"],
+  desc: "Turns a Vector2 into a dual-handle from–to slider. <code>x</code> is the low end and <code>y</code> the high end. Always <code>x ≤ y</code> and inside the bounds.",
+  notes: ["Drag a handle, drag the band to move both, or type into the two number fields.", "Without the attribute a Vector2 renders as the normal X/Y row.", "On any other field type it is ignored and a console warning is logged. Use <code>[Range]</code> to limit a single number."],
+  code: `[SMinMax(0f, 10f)]
+public Vector2 spawnRange = new(2f, 8f);`,
+  demo: () => { const l = W.log(); return W.panel(W.row("Spawn Range", W.minmax({ min: 0, max: 10, lo: 2, hi: 8, onChange: (a, b) => l.add(`x=${a.toFixed(1)}  y=${b.toFixed(1)}`) })), l); },
+});
+
+A("expandable", "layout", "Expandable", {
+  targets: ["object reference"], sig: ["[Expandable(bool defaultExpanded = false)]"],
+  desc: "Unfolds the assigned asset's own inspector inline below the field. Edit a ScriptableObject or component without leaving the parent inspector.",
+  code: `[Expandable] public BalanceData config;`,
+  demo: () => {
+    let open = false; const body = h("div", { class: "si-expbody", style: "display:none" }, h("div", { class: "hd" }, "BalanceData"),
+      h("div", { class: "bd" }, W.row("Base Damage", W.num({ value: 12, int: true })), W.row("Crit Chance", W.slider({ min: 0, max: 1, value: .15 }))));
+    const arrow = h("i", null, "▸"), txt = h("b", null, "Edit");
+    const tog = h("div", { class: "si-expb", onclick: () => { open = !open; body.style.display = open ? "" : "none"; arrow.textContent = open ? "▾" : "▸"; txt.textContent = open ? "Close" : "Edit"; } }, arrow, txt);
+    return W.panel(h("div", null, W.row("Config", h("div", { class: "si-exp" }, W.obj("BalanceData", "DefaultBalance"), tog)), body));
+  },
+});
+
+/* -------- APPEARANCE -------- */
+A("sreadonly", "appearance", "SReadOnly", {
+  targets: ["field"], sig: ["[SReadOnly]"],
+  desc: "Draws the field disabled: dimmed and not editable.",
+  notes: ["Named <code>SReadOnly</code> to avoid clashes with <code>System.ComponentModel.ReadOnlyAttribute</code>."],
+  code: `public int level = 3;
+[SReadOnly] public int maxLevel = 10;`,
+  demo: () => W.panel(W.row("Level", W.num({ value: 3, int: true })), W.row("Max Level", W.num({ value: 10, int: true }), { ro: true })),
+});
+
+A("label", "appearance", "Label", {
+  alias: "LabelText", targets: ["field", "property"], sig: ["[Label(string text)]", "[LabelText(string text)]   // alias"],
+  desc: "Overrides the display label of a field or property.",
+  code: `[Label("Max HP")] public int maxHitPoints = 100;
+[LabelText("Move Speed (m/s)")] public float speed = 4f;`,
+  demo: () => W.panel(W.row("Max HP", W.num({ value: 100, int: true })), W.row("Move Speed (m/s)", W.num({ value: 4 }))),
+});
+
+A("tintcolor", "appearance", "TintColor", {
+  targets: ["field"], sig: ["[TintColor(string color, bool background = false)]", "[TintColor(TintColor tint, bool background = false)]"],
+  desc: "Tints the field's label. With <code>background: true</code> it also tints the input surface at low alpha, so it stays readable.",
+  notes: ["<code>color</code> takes <code>\"red\"</code>, <code>\"#RRGGBB\"</code> or <code>\"#RRGGBBAA\"</code>. Or pick from the <code>TintColor</code> palette (see Reference).",
+    "Named <code>TintColor</code> (not <code>Color</code>) to avoid CS1614 against <code>UnityEngine.Color</code>. On an enum member it also colours that <code>[EnumToggleButtons]</code> segment."],
+  code: `[TintColor(TintColor.Red)] public int health = 100;
+[TintColor("#4ecdc4", background: true)] public int mana = 50;`,
+  demo: () => W.panel(W.row("Health", W.num({ value: 100, int: true }), { tint: tint("Red") }), W.row("Mana", W.num({ value: 50, int: true }), { tint: "#4ecdc4", tintBg: true })),
+});
+
+A("inspectoraccent", "appearance", "InspectorAccent", {
+  targets: ["class"], sig: ["[InspectorAccent(string member)]"],
+  desc: "Replaces the theme accent for the whole inspector with the value of a member that returns a <code>Color</code>, <code>TintColor</code> or hex string.",
+  notes: ["The inspector rebuilds when the value changes, so it can follow a field (e.g. a mode enum).", "<code>[AccentColor]</code> on a field still wins for that field."],
+  code: `[SInspector, InspectorAccent(nameof(ModeAccent))]
+public class Shadow : MonoBehaviour {
+    public Mode mode;
+    TintColor ModeAccent => mode == Mode.Soft ? TintColor.Yellow : TintColor.Blue;
+}`,
+  demo: () => W.panel(W.row("Strength", W.slider({ min: 0, max: 1, value: .8, accent: tint("Yellow") })),
+    W.row("Enabled", W.toggle(true, null, tint("Yellow")))),
+});
+
+A("accentcolor", "appearance", "AccentColor", {
+  targets: ["field", "enum member"], sig: ["[AccentColor(string colorHex)]", "[AccentColor(TintColor tint)]"],
+  desc: "Changes the accent colour of the field's control: slider fill, a bool's on-colour, a knob arc, an enum selection, or a collection header.",
+  notes: ["Hex takes priority over the palette. Without it the theme accent (<code>#60a5fa</code>) is used.", "On an enum member it colours that <code>[EnumToggleButtons]</code> segment."],
+  code: `[AccentColor(TintColor.Teal)] public float health;
+[AccentColor(TintColor.Amber)] public bool godMode;
+[AccentColor("#ff6b6b")] public List<string> tags;`,
+  demo: () => W.panel(W.row("Health", W.slider({ min: 0, max: 100, value: 60, int: true, accent: tint("Teal") })),
+    W.row("God Mode", W.toggle(true, null, tint("Amber"))),
+    W.list({ title: "Tags", accent: "#ff6b6b", items: ["fast", "loud"], mk: (it, i) => W.text(it), add: a => a.push("tag" + a.length) })),
+});
+
+A("tag", "appearance", "Tag", {
+  targets: ["field"], multi: true,
+  sig: ["[Tag(string label, TagColor color = Cyan, string colorHex = null, TintColor tint = None)]", "[Tag(string label, TintColor tint)]", "[Tag(string label, string colorHex)]"],
+  desc: "A small coloured pill after the field. Use it to flag a field: beta, deprecated, designer-only. Stack several for several pills.",
+  code: `[Tag("BETA", TagColor.Cyan)] public float chaosFactor;
+[Tag("OLD", TagColor.Orange), Tag("HIDDEN", TagColor.Gray)] public int legacy;
+[Tag("NEW", TintColor.Lime)] public bool fresh;`,
+  demo: () => W.panel(W.row("Chaos Factor", W.num({ value: .3 }), { tags: [["BETA", tagc("Cyan")]] }),
+    W.row("Legacy", W.num({ value: 1, int: true }), { tags: [["OLD", tagc("Orange")], ["HIDDEN", tagc("Gray")]] }),
+    W.row("Fresh", W.toggle(true), { tags: [["NEW", tint("Lime")]] })),
+});
+
+A("suffixlabel", "appearance", "SuffixLabel", {
+  targets: ["field"], sig: ["[SuffixLabel(string label, bool overlay = false)]"],
+  desc: "Adds a small grey label to a field: a unit, a hint or a live value.",
+  notes: ["<code>overlay: true</code> draws it inside the field at the right edge.", "<code>\"$member\"</code> polls a string field, property or method on the same object (about every 250 ms)."],
+  code: `[SuffixLabel("m/s")] public float speed = 4f;
+[SuffixLabel("%", overlay: true)] public float chance = 25f;
+[SuffixLabel("$statusText")] public int ammo = 12;`,
+  demo: () => { let n = 12; const r = W.row("Ammo", W.num({ value: n, int: true, onChange: v => n = v }), { suffix: "12 / 30 rounds" });
+    const suf = r.querySelector(".si-suf"); setInterval(() => suf.textContent = `${n} / 30 rounds`, 250);
+    return W.panel(W.row("Speed", W.num({ value: 4 }), { suffix: "m/s" }), W.row("Chance", W.num({ value: 25 }), { suffix: "%", overlay: true }), r, W.note("Row 3 polls a string member.")); },
+});
+
+A("unit", "appearance", "Unit", {
+  targets: ["int", "float"],
+  sig: ["[Unit(string custom)]", "[Unit(UnitOfMeasure unit)]", "[Unit(UnitOfMeasure unit, UnitOfMeasure displayAs)]"],
+  desc: "Marks a number with a unit. The third form adds a read-only companion row with the value converted to <code>displayAs</code>.",
+  notes: ["Conversion only works inside one dimension (length, mass, time, speed, angle). A mismatch shows a warning box. See the unit table in Reference."],
+  code: `[Unit("dmg/s")] public float dps = 25f;
+[Unit(UnitOfMeasure.Meters)] public float reach = 3f;
+[Unit(UnitOfMeasure.Meters, UnitOfMeasure.Feet)] public float height = 1.8f;`,
+  demo: () => { const comp = h("span", { class: "si-val", style: "opacity:1;color:var(--text-2)" }, (1.8 / .3048).toFixed(3));
+    const cRow = W.row("Height (ft)", comp); cRow.style.opacity = ".85";
+    return W.panel(W.row("Dps", W.num({ value: 25 }), { suffix: "dmg/s" }), W.row("Reach", W.num({ value: 3 }), { suffix: "m" }),
+      W.row("Height", W.num({ value: 1.8, onChange: v => comp.textContent = +(v / .3048).toFixed(3) }), { suffix: "m" }), cRow); },
+});
+
+A("infobox", "appearance", "InfoBox", {
+  targets: ["field"], multi: true, sig: ["[InfoBox(string message, InfoBoxType type = Info, string visibleIf = null)]"],
+  desc: "A help box above the field. Types: Info, Warning, Error. Stackable. With <code>visibleIf</code> it shows only while that member is truthy.",
+  code: `[InfoBox("This value is recalculated at runtime.")]
+[InfoBox("Chaos mode is experimental.", InfoBoxType.Warning, visibleIf: nameof(chaosMode))]
+[InfoBox("Never set this to 0!", InfoBoxType.Error)]
+public float speed = 4f;
+
+public bool chaosMode;`,
+  demo: () => { const warn = W.msg("Chaos mode is experimental.", "warn"); warn.style.display = "none";
+    return W.panel(W.msg("This value is recalculated at runtime."), warn, W.msg("Never set this to 0!", "error"), W.row("Speed", W.num({ value: 4 })),
+      W.row("Chaos Mode", W.toggle(false, v => warn.style.display = v ? "" : "none")), W.note("Toggle Chaos Mode → warning appears.")); },
+});
+
+/* -------- CONTROLS -------- */
+A("enumtogglebuttons", "controls", "EnumToggleButtons", {
+  targets: ["enum"], sig: ["[EnumToggleButtons(string label = null, int buttonsPerRow = 0)]", "[EnumToggleButtons(int buttonsPerRow)]"],
+  desc: "Shows an enum as a row of buttons instead of a dropdown. A plain enum is a single-select segmented control. A <code>[Flags]</code> enum is a multi-select toggle bar.",
+  notes: ["<code>buttonsPerRow</code> breaks long enums into several rows.", "Put <code>[AccentColor]</code> or <code>[TintColor]</code> on enum members to colour each segment."],
+  code: `public enum Mode { Idle, Patrol, Chase, Flee }
+
+[Flags] public enum Team { Red = 1, Blue = 2, Green = 4, Gold = 8 }
+
+public enum Speed { [AccentColor(TintColor.Green)] Slow,
+                    [AccentColor(TintColor.Amber)] Normal,
+                    [AccentColor(TintColor.Red)] Fast }
+
+[EnumToggleButtons] public Mode mode;
+[EnumToggleButtons] public Team teams;
+[EnumToggleButtons] public Speed speed;
+[EnumToggleButtons(3)] public Weather weather;`,
+  demo: () => W.panel(
+    W.row("Mode", W.seg({ labels: ["Idle", "Patrol", "Chase", "Flee"], value: 1 })),
+    W.row("Teams", W.seg({ labels: ["Red", "Blue", "Green", "Gold"], value: [0, 2], multi: true })),
+    W.row("Speed", W.seg({ labels: ["Slow", "Normal", "Fast"], value: 1, accents: [tint("Green"), tint("Amber"), tint("Red")] })),
+    W.row("Weather", W.seg({ labels: ["Clear", "Rain", "Snow", "Fog", "Storm", "Wind"], value: 0, perRow: 3 }))),
+});
+
+A("percent", "controls", "Percent", {
+  targets: ["float"], sig: ["[Percent(float valueMin = 0f, float valueMax = 1f)]"],
+  desc: "Shows a float as an editable 0–100 % slider plus typed field. The serialized value keeps its normal range. Only the displayed number is remapped.",
+  code: `[Percent] public float volume = 0.35f;              // stored 0..1
+[Percent(0f, 20f)] public float falloff = 5f;       // stored 0..20`,
+  demo: () => { const note = W.note("stored: 0.35"); const p2 = W.note("stored: 5");
+    return W.panel(W.row("Volume", W.slider({ min: 0, max: 100, value: 35, int: true, onChange: v => note.textContent = "stored: " + (v / 100).toFixed(2) }), { suffix: "%" }), note,
+      W.row("Falloff", W.slider({ min: 0, max: 100, value: 25, int: true, onChange: v => p2.textContent = "stored: " + (v / 100 * 20).toFixed(1) }), { suffix: "%" }), p2); },
+});
+
+A("knob", "controls", "Knob", {
+  targets: ["int", "float"], sig: ["[Knob(float min, float max, float diameter = 42f)]", "[Knob(KnobRange range)]", "named: Diameter"],
+  desc: "A rotary dial. Drag around the circle. The number field to the right stays typeable. Presets cover the usual angle ranges.",
+  notes: ["<code>KnobRange</code>: Degrees0To360, DegreesSigned180, Radians0To2Pi, RadiansSignedPi, Unit01.",
+    "Set the size with <code>diameter</code> on the min/max form, or <code>Diameter = 60</code> on the preset form."],
+  code: `[Knob(0f, 20f)] public float volume = 8f;
+[Knob(KnobRange.DegreesSigned180)] public float heading = 45f;
+[Knob(KnobRange.RadiansSignedPi)] public float headingRad;`,
+  demo: () => W.panel(W.row("Volume", W.knob({ min: 0, max: 20, value: 8 })), W.row("Heading", W.knob({ min: -180, max: 180, value: 45 })),
+    W.row("Heading Rad", W.knob({ min: -Math.PI, max: Math.PI, value: 0, accent: tint("Violet") }))),
+});
+
+A("stepper", "controls", "Stepper", {
+  targets: ["int", "float"], sig: ["[Stepper(float step = 1f, float min = float.MinValue, float max = float.MaxValue)]"],
+  desc: "A <code>[−] [value] [+]</code> control instead of a drag field. Click = one step. Shift-click = 10× step.",
+  code: `[Stepper(1f, 0f, 99f)] public int ammoCount = 12;
+[Stepper(0.5f, 0f, 5f)] public float multiplier = 1f;`,
+  demo: () => W.panel(W.row("Ammo Count", W.stepper({ step: 1, min: 0, max: 99, value: 12 })), W.row("Multiplier", W.stepper({ step: .5, min: 0, max: 5, value: 1, int: false })), W.note("Try shift-click.")),
+});
+
+A("progressbar", "controls", "ProgressBar", {
+  targets: ["int", "float"],
+  sig: ["[ProgressBar(float min, float max, string color = null, int height = 18, string minMember = null,", "             string maxMember = null, bool segmented = false, bool showValue = true, bool percent = false,", "             TintColor tint = None)]"],
+  desc: "A read-only bar that follows the value. The fill updates on change. Only a dynamic range (<code>minMember</code> / <code>maxMember</code>) is polled.",
+  notes: ["A value above the max turns the fill red. <code>percent: true</code> shows <code>50%</code> instead of <code>value / max</code>.", "Use a normal <code>[Range]</code> slider when you want to edit the value."],
+  code: `[ProgressBar(0, 100)] public float health = 65f;
+[ProgressBar(0, 100, percent: true, tint: TintColor.Green)] public float xp = 40f;
+[ProgressBar(0, 10, segmented: true, height: 14)] public int stamina = 6;
+[ProgressBar(0, 1, height: 8, showValue: false, tint: TintColor.Violet)] public float charge = 0.7f;
+[ProgressBar(0, 100, maxMember: nameof(maxHealth))] public float shield = 30f;`,
+  demo: () => {
+    const b1 = W.progress({ value: 65, min: 0, max: 100 }), b2 = W.progress({ value: 40, min: 0, max: 100, color: tint("Green"), percent: true });
+    const b3 = W.progress({ value: 6, min: 0, max: 10, segmented: true, height: 14 }), b4 = W.progress({ value: .7, min: 0, max: 1, height: 8, showValue: false, color: tint("Violet") });
+    const b5 = W.progress({ value: 30, min: 0, max: 100 });
+    const drv = W.slider({ min: 0, max: 130, value: 65, int: true, onChange: v => { b1.set(v); b2.set(v); b3.set(v / 10); b4.set(v / 100); b5.set(v); } });
+    return W.panel(W.row("Health", b1), W.row("Xp", b2), W.row("Stamina", b3), W.row("Charge", b4), W.row("Shield", b5), W.hline({ label: "drive the value (docs only)", placement: "above" }), W.row("Value", drv), W.note("Go above 100 → overflow turns red."));
+  },
+});
+
+A("scene", "controls", "Scene", {
+  targets: ["string", "int"], sig: ["[Scene(bool useFullPath = false)]"],
+  desc: "A scene picker for a string or int field. Lists the enabled scenes from Build Settings. A string stores the scene name (or asset path). An int stores the build index.",
+  code: `[Scene] public string levelName;
+[Scene(useFullPath: true)] public string levelPath;
+[Scene] public int levelIndex;`,
+  demo: () => { const sc = ["MainMenu", "Level_01", "Level_02", "Credits"];
+    return W.panel(W.row("Level Name", W.dropdown(sc, "Level_01")), W.row("Level Path", W.dropdown(sc.map(s => `Assets/Scenes/${s}.unity`), "Assets/Scenes/Level_01.unity")),
+      W.row("Level Index", W.dropdown(sc.map((s, i) => `${i}: ${s}`), "1: Level_01"))); },
+});
+
+A("required", "controls", "Required", {
+  targets: ["object reference"], sig: ["[Required(string message = null)]"],
+  desc: "Flags an object reference as mandatory. While it is <code>None</code> the field gets a red edge flag and an inline error. It is only a visual nudge. It does not block Apply or Play.",
+  code: `[Required] public Transform target;
+[Required("Needs a spawn point")] public Transform spawnPoint;`,
+  demo: () => {
+    const mk = (label, msg) => { const wrap = h("div", { class: "si-req" }); const flag = h("div", { class: "flag" }); const box = W.msg(msg, "error"); box.style.marginTop = "1px";
+      const upd = v => { flag.style.display = v ? "none" : ""; box.style.display = v ? "none" : ""; };
+      const o = W.obj("Transform", null, upd); wrap.append(flag, W.row(label, o), box); upd(null); return wrap; };
+    return W.panel(mk("Target", "Target is required."), mk("Spawn Point", "Needs a spawn point"), W.note("Click a field to assign / clear."));
+  },
+});
+
+/* -------- LOGIC -------- */
+const drvRow = (label, init, cb) => W.row(label, W.toggle(init, cb));
+
+A("showif", "logic", "ShowIf", {
+  targets: ["field"], sig: ["[ShowIf(string member, params object[] values)]"],
+  desc: "Shows the field only while a condition on another member holds. It is re-evaluated live: event-driven for a serialized driver, polled otherwise.",
+  notes: ["No values = <b>truthy</b> (true, non-zero, non-empty, non-null).", "One or more values = <b>equals any</b>.", "A <code>[Flags]</code> driver = <b>contains</b> those bits.", "The driver can be a field, property or parameterless method."],
+  code: `public bool useTimer;
+[ShowIf(nameof(useTimer))] public float duration = 5f;
+
+public Mode mode;
+[ShowIf(nameof(mode), Mode.Advanced, Mode.Expert)] public float tolerance = 0.1f;
+
+[Flags] public enum Feature { Audio = 1, Video = 2 }
+public Feature features;
+[ShowIf(nameof(features), Feature.Audio)] public float volume = 0.8f;`,
+  demo: () => { const dur = W.row("Duration", W.num({ value: 5 })), tol = W.row("Tolerance", W.num({ value: .1 })), vol = W.row("Volume", W.slider({ min: 0, max: 1, value: .8 }));
+    dur.style.display = "none"; tol.style.display = "none";
+    let mode = 0, feats = new Set();
+    const t = () => tol.style.display = mode >= 1 ? "" : "none", f = () => vol.style.display = feats.has(0) ? "" : "none"; f();
+    return W.panel(drvRow("Use Timer", false, v => dur.style.display = v ? "" : "none"), dur,
+      W.row("Mode", W.seg({ labels: ["Basic", "Advanced", "Expert"], value: 0, onChange: i => { mode = i; t(); } })), tol,
+      W.row("Features", W.seg({ labels: ["Audio", "Video"], value: [], multi: true, onChange: a => { feats = new Set(a); f(); } })), vol); },
+});
+
+A("hideif", "logic", "HideIf", {
+  targets: ["field"], sig: ["[HideIf(string member, params object[] values)]"],
+  desc: "The inverse of <code>[ShowIf]</code>. Same condition grammar. The field is hidden while the condition holds.",
+  code: `public bool useDefaults = true;
+[HideIf(nameof(useDefaults))] public float customSpeed = 6f;`,
+  demo: () => { const r = W.row("Custom Speed", W.num({ value: 6 })); r.style.display = "none"; return W.panel(drvRow("Use Defaults", true, v => r.style.display = v ? "none" : ""), r); },
+});
+
+A("enableif", "logic", "EnableIf", {
+  targets: ["field"], sig: ["[EnableIf(string member, params object[] values)]"],
+  desc: "Like <code>[ShowIf]</code>, but the field stays visible and is greyed out (not interactive) while the condition fails.",
+  code: `public bool useCustomRange;
+[EnableIf(nameof(useCustomRange))] public float customMax = 20f;`,
+  demo: () => { const r = W.row("Custom Max", W.num({ value: 20 }), { dis: true }); return W.panel(drvRow("Use Custom Range", false, v => r.classList.toggle("dis", !v)), r); },
+});
+
+A("disableif", "logic", "DisableIf", {
+  targets: ["field"], sig: ["[DisableIf(string member, params object[] values)]"],
+  desc: "The inverse of <code>[EnableIf]</code>. The field is greyed out while the condition holds.",
+  code: `public bool locked = true;
+[DisableIf(nameof(locked))] public int slots = 4;`,
+  demo: () => { const r = W.row("Slots", W.num({ value: 4, int: true }), { dis: true }); return W.panel(drvRow("Locked", true, v => r.classList.toggle("dis", v)), r); },
+});
+
+const modeDemo = (kind) => {
+  const r = W.row(kind === "play" ? "Live Speed" : "Spawn Delay", W.num({ value: kind === "play" ? 4.2 : 1.5 }));
+  const hint = W.note(kind === "play" ? "Hidden in Edit Mode. Switch Play Mode on." : "Hidden in Play Mode. Switch Play Mode off.");
+  Play.bind(on => { const vis = kind === "play" ? on : !on; r.style.display = vis ? "" : "none"; hint.style.display = vis ? "none" : ""; });
+  const sw = W.toggle(Play.on, v => Play.set(v)); Play.bind(v => sw.set(v));
+  return W.panel(h("div", { class: "si-mode" }, sw, h("span", null, "Mock Play Mode (global)")), r, hint);
+};
+A("showinplaymode", "logic", "ShowInPlayMode", {
+  alias: "HideInEditorMode", targets: ["field", "property", "method"], sig: ["[ShowInPlayMode]", "[HideInEditorMode]   // alias"],
+  desc: "Shows the element only while the game is in Play Mode. It is hidden in Edit Mode.",
+  code: `[ShowInPlayMode] public float liveSpeed;
+[ShowInPlayMode, SButton] void DumpState() { }`,
+  demo: () => modeDemo("play"),
+});
+A("showineditmode", "logic", "ShowInEditMode", {
+  alias: "HideInPlayMode", targets: ["field", "property", "method"], sig: ["[ShowInEditMode]", "[HideInPlayMode]   // alias"],
+  desc: "Shows the element only in Edit Mode. It is hidden while the game runs.",
+  code: `[ShowInEditMode] public float spawnDelay = 1.5f;`,
+  demo: () => modeDemo("edit"),
+});
+
+A("onvaluechanged", "logic", "OnValueChanged", {
+  targets: ["field"], multi: true, sig: ["[OnValueChanged(string method)]"],
+  desc: "Calls a method on the same object whenever the field changes in the inspector. Stackable.",
+  notes: ["Accepted signatures, in this order: <code>()</code>, <code>(T newValue)</code>, <code>(T oldValue, T newValue)</code>. <code>T</code> is the field type or <code>object</code>.", "A missing method logs a warning to the console."],
+  code: `[OnValueChanged(nameof(Rebuild))]
+public int segments = 8;
+
+[OnValueChanged(nameof(LogChange))]
+public float radius = 2f;
+
+void Rebuild() { }
+void LogChange(float oldV, float newV) { }`,
+  demo: () => { const l = W.log(); let old = 2;
+    return W.panel(W.row("Segments", W.stepper({ step: 1, min: 3, max: 32, value: 8, onChange: v => l.add("Rebuild()") })),
+      W.row("Radius", W.slider({ min: 0, max: 10, value: 2, onChange: v => { l.add(`LogChange(${old.toFixed(2)} → ${v.toFixed(2)})`); old = v; } })), l); },
+});
+
+/* -------- METHODS -------- */
+A("sbutton", "methods", "SButton", {
+  targets: ["method"], sig: ["[SButton(string label = null, ButtonSize size = Full, ButtonSize height = Normal, ButtonAnchor anchor = Center,", "         string after = null, string before = null, string icon = null)]"],
+  desc: "Draws a button for a parameterless method. By default it sits where the method is declared. <code>after</code> / <code>before</code> pin it next to a named field instead.",
+  notes: ["Width: Small 90 px, Normal 140 px, Large 220 px, Full stretches. Height: Small 16, Normal 20, Large 28 px. As a height, <code>Full</code> means Large.", "<code>anchor</code> only matters when the width is not Full.", "Named <code>SButton</code> to avoid a clash with <code>UnityEngine.UI.Button</code>."],
+  code: `[SButton] void Spawn() { }
+[SButton("Reset", ButtonSize.Small, anchor: ButtonAnchor.Left)] void Reset() { }
+[SButton("Big One", ButtonSize.Large, ButtonSize.Large, ButtonAnchor.Right)] void Big() { }
+[SButton("Ping", ButtonSize.Normal, after: nameof(target))] void Ping() { }`,
+  demo: () => { const l = W.log(); const c = n => () => l.add(n + "()");
+    return W.panel(W.btn("Spawn", { onClick: c("Spawn"), accent: true }), W.btn("Reset", { size: "small", anchor: "left", onClick: c("Reset") }),
+      W.btn("Big One", { size: "large", height: "large", anchor: "right", onClick: c("Big") }),
+      W.row("Target", W.obj("Transform")), W.btn("Ping", { size: "normal", anchor: "left", onClick: c("Ping") }), l); },
+});
+
+A("buttongroup", "methods", "ButtonGroup", {
+  targets: ["method"], sig: ["[ButtonGroup(string group, string label = null, string icon = null)]"],
+  desc: "Methods that share a <code>group</code> key become one segmented button bar, in declaration order. The bar sits where the first method is declared.",
+  code: `[ButtonGroup("Actions")] void Spawn() { }
+[ButtonGroup("Actions")] void Kill() { }
+[ButtonGroup("Actions", "Wipe")] void ClearAll() { }`,
+  demo: () => { const l = W.log(); const c = n => () => l.add(n + "()");
+    return W.panel(W.btngroup([{ label: "Spawn", fn: c("Spawn") }, { label: "Kill", fn: c("Kill") }, { label: "Wipe", fn: c("ClearAll") }]), l); },
+});
+
+A("inlinebutton", "methods", "InlineButton", {
+  targets: ["field"], multi: true, sig: ["[InlineButton(string method, string label = null, string icon = null)]"],
+  desc: "A small button to the right of the field row, wired to a parameterless method. Stackable to chain buttons.",
+  code: `[InlineButton(nameof(Randomize), "Roll")]
+[InlineButton(nameof(Reset))]
+public int seed = 1234;`,
+  demo: () => { const l = W.log(); return W.panel(W.row("Seed", W.num({ value: 1234, int: true }), { inline: [{ label: "Roll", fn: () => l.add("Randomize()") }, { label: "Reset", fn: () => l.add("Reset()") }] }), l); },
+});
+
+A("showproperty", "methods", "ShowProperty", {
+  targets: ["property"], sig: ["[ShowProperty(string label = null, int pollMs = 250)]", "[ShowProperty(string label, string suffix, int pollMs = 250)]", "named: Suffix, Badge, Tint, ColorHex"],
+  desc: "Shows a C# property as a read-only live value. It is polled (default 250 ms) and never written or serialized. The row appears where the property is declared.",
+  notes: ["<code>Badge = true</code> renders a pill: <b>TRUE</b> in green, <b>FALSE</b> in red. Other values use <code>Tint</code> / <code>ColorHex</code>."],
+  code: `[ShowProperty] public float CurrentSpeed => rb.velocity.magnitude;
+[ShowProperty("Health", "%")] public float HealthPct => hp * 100f;
+[ShowProperty(Badge = true)] public bool IsAlive => hp > 0;
+[ShowProperty(Badge = true, Tint = TintColor.Amber)] public string State => state.ToString();`,
+  demo: () => { const sp = h("span", { class: "si-val" }, "0"), hp = h("span", { class: "si-val" }, "75 %"); const al = h("span", { class: "si-badge" }, "TRUE"); const st = h("span", { class: "si-badge" }, "CHASE");
+    const paint = (el, c) => { el.style.color = c; el.style.background = `color-mix(in srgb, ${c} 18%, transparent)`; };
+    paint(st, tint("Amber")); let t = 0, alive = true;
+    const tick = () => { t += .25; sp.textContent = (4 + Math.sin(t) * 2).toFixed(2); alive = Math.sin(t / 3) > -.6; al.textContent = alive ? "TRUE" : "FALSE"; paint(al, alive ? "#73d940" : "#f25247"); };
+    tick(); setInterval(tick, 250);
+    return W.panel(W.row("Current Speed", sp), W.row("Health", h("span", { class: "si-val" }, "75"), { suffix: "%" }), W.row("Is Alive", al), W.row("State", st), W.note("Values update every 250 ms.")); },
+});
+
+A("showfield", "methods", "ShowField", {
+  targets: ["non-serialized field"], sig: ["[ShowField(string label = null, int pollMs = 250)]"],
+  desc: "Shows a <code>[NonSerialized]</code> field as a read-only live value. It is polled and never written back.",
+  notes: ["On a serialized field it does nothing. The normal row already shows it."],
+  code: `[NonSerialized, ShowField] public int frameCount;
+[NonSerialized, ShowField("Last Hit", 100)] public float lastHitTime;`,
+  demo: () => { const a = h("span", { class: "si-val" }, "0"), b = h("span", { class: "si-val" }, "0.00"); let f = 0;
+    setInterval(() => { f += 15; a.textContent = f; b.textContent = (f / 60).toFixed(2); }, 250);
+    return W.panel(W.row("Frame Count", a), W.row("Last Hit", b)); },
+});
+
+/* -------- TYPES -------- */
+A("sdictionary", "types", "SDictionary<TKey, TValue>", {
+  targets: ["type"], sig: ["public class SDictionary<TKey, TValue> : Dictionary<TKey, TValue>, ISerializationCallbackReceiver"],
+  desc: "A <code>Dictionary</code> that Unity can serialize. Two parallel lists back it and the inspector edits them. The live dictionary is rebuilt on deserialize.",
+  notes: ["Duplicate or null keys are dropped silently. The editor flags duplicates in red first.", "Collections render as a card with a count badge, drag handles, an index and a per-row remove."],
+  code: `[SInspector]
+class Loot : MonoBehaviour {
+    public SDictionary<string, int> table = new();
+}`,
+  demo: () => { const items = [["coin", 50], ["gem", 5], ["key", 1]], keys = [];
+    const flag = () => keys.forEach((k, i) => k.classList.toggle("bad", items.filter(x => x[0] === items[i][0]).length > 1));
+    return W.panel(W.list({ title: "Table", items, add: a => a.push(["item" + a.length, 1]),
+      mk: (it, i) => { if (i === 0) keys.length = 0; const k = W.text(it[0], v => { it[0] = v; flag(); }); keys.push(k); setTimeout(flag, 0);
+        return h("div", { style: "display:flex;gap:4px;flex:1;min-width:0" }, k, W.num({ value: it[1], int: true, spinner: false, onChange: v => it[1] = v })); } }),
+      W.note("Type an existing key → the duplicate turns red.")); },
+});
+
+A("shashset", "types", "SHashSet<T>", {
+  targets: ["type"], sig: ["public class SHashSet<T> : HashSet<T>, ISerializationCallbackReceiver"],
+  desc: "A <code>HashSet</code> that Unity can serialize. A list backs it and the inspector edits it. The live set is rebuilt on deserialize.",
+  notes: ["Duplicate or null entries are dropped silently. The editor flags them first."],
+  code: `[SInspector]
+class Tags : MonoBehaviour {
+    public SHashSet<string> ids = new();
+}`,
+  demo: () => { const items = ["boss", "flying", "armored"], ins = [];
+    const flag = () => ins.forEach((k, i) => k.classList.toggle("bad", items.filter(x => x === items[i]).length > 1));
+    return W.panel(W.list({ title: "Ids", items, add: a => a.push("id" + a.length),
+      mk: (it, i) => { if (i === 0) ins.length = 0; const t = W.text(it, v => { items[i] = v; flag(); }); ins.push(t); setTimeout(flag, 0); return t; } }),
+      W.note("Type an existing entry → the duplicate turns red.")); },
+});
+
+/* ============================================================
+   Render
+   ============================================================ */
+const sectionsEl = document.getElementById("sections"), navEl = document.getElementById("nav");
+const gettingStarted = () => {
+  const card = h("article", { class: "card", id: "start", "data-s": "getting started install unity attributes header space tooltip range" });
+  card.append(
+    h("h4", null, "Getting started"),
+    h("p", { class: "desc" }, "Install the package, put ", h("code", null, "[SInspector]"), " on a class, then add attributes to fields and methods."),
+    h("ul", { class: "notes" },
+      h("li", null, h("b", null, "Install: "), "Package Manager ▸ + ▸ Add package from git URL (link above)."),
+      h("li", null, h("b", null, "Two assemblies: "), h("code", null, "Sperlich.EditorKit.Attributes"), " (runtime, attribute types only) and ", h("code", null, "Sperlich.EditorKit"), " (editor only: theme, widgets, engine)."),
+      h("li", null, h("b", null, "Unity attributes still work: "), h("code", null, "[Header]"), ", ", h("code", null, "[Space]"), ", ", h("code", null, "[Tooltip]"), ", ", h("code", null, "[Range]"), ", ", h("code", null, "[TextArea]"), ", ", h("code", null, "[Multiline]"), "."),
+      h("li", null, h("b", null, "Name on clashes: "), "some attributes carry an ", h("code", null, "S"), " prefix (", h("code", null, "SButton"), ", ", h("code", null, "SReadOnly"), ", ", h("code", null, "SRow"), ", ", h("code", null, "SMinMax"), ") to avoid collisions with Unity and .NET types.")));
+  const g = h("div", { class: "demo-grid" });
+  g.append(h("div", null, h("div", { class: "pane-lbl" }, "C#"), codeBox(`[SInspector]
+public class Example : MonoBehaviour {
+    [Header("Stats")]                 // Unity attribute, still works
+    [Range(0, 100)] public int health = 80;
+    [Space(8)]
+    [Tooltip("Hover me")] public float speed = 4f;
+}`)), h("div", null, h("div", { class: "pane-lbl" }, "Inspector"), W.panel(W.header("Stats", true), W.row("Health", W.slider({ min: 0, max: 100, value: 80, int: true })), W.space(), W.row("Speed", W.num({ value: 4 }), { tip: "Hover me" }))));
+  card.append(g); return card;
+};
+
+const reference = () => {
+  const sec = h("section", { class: "grp", id: "g-reference", "data-group": "reference" });
+  sec.append(h("header", null, h("h3", null, "Reference"), h("p", null, "Enums, palettes and theme tokens.")));
+  const tokens = [["BgDark", "#242424", "inputs, tracks"], ["BgStep", "#303030", "header strips"], ["BgStepBody", "#262626", "box bodies"], ["BgPanel", "#2b2b2b", "foldout / panel bodies"],
+    ["ButtonBg", "#383838", ""], ["ButtonHoverBg", "#474747", ""], ["ToggleOn", "#3b82f6", ""], ["ToggleOff", "#3b3b3b", ""], ["Accent (ButtonAccent)", "#60a5fa", "default accent"],
+    ["BadgeInfo", "#2673d9", ""], ["BadgeWarn", "#d98c26", ""], ["BadgeDanger", "#d93333", ""], ["TextSecondary", "#cccccc", "labels"], ["TextMuted", "#949494", ""], ["TextFaint", "#7a7a7a", ""],
+    ["BorderSubtle", "rgba(255,255,255,.08)", ""], ["BorderStrong", "rgba(255,255,255,.15)", ""], ["Prefab override bar", "#0f80bf", ""]];
+  const tk = h("div", { class: "tok" }, tokens.map(([n, c, d]) => h("div", { class: "sw" }, h("i", { style: { background: c } }), h("div", null, n, h("small", null, c + (d ? " · " + d : ""))))));
+  const tint26 = h("div", { class: "swatches" }, Object.keys(TINT).map(n => h("div", { class: "sw", title: "Click to copy TintColor." + n, onclick: e => copyText("TintColor." + n) }, h("i", { style: { background: tint(n) } }), h("div", null, n, h("small", null, tint(n))))));
+  const tag10 = h("div", { class: "swatches" }, Object.keys(TAGC).map(n => h("div", { class: "sw", onclick: () => copyText("TagColor." + n) }, h("i", { style: { background: tagc(n) } }), h("div", null, n, h("small", null, tagc(n))))));
+  const tbl = (head, rows) => h("table", { class: "ref" }, h("thead", null, h("tr", null, head.map(x => h("th", null, x)))), h("tbody", null, rows.map(r => h("tr", null, r.map(c => h("td", null, c))))));
+  const units = [["Length (m)", "Millimeters mm · Centimeters cm · Meters m · Kilometers km · Inches in · Feet ft · Miles mi"], ["Mass (kg)", "Grams g · Kilograms kg · Tonnes t · Pounds lb"],
+    ["Time (s)", "Milliseconds ms · Seconds s · Minutes min · Hours h"], ["Speed (m/s)", "MetersPerSecond m/s · KilometersPerHour km/h · MilesPerHour mph"], ["Angle (rad)", "Degrees ° · Radians rad"]];
+  const block = (id, title, ...kids) => h("article", { class: "card", id, "data-s": (title + " reference enum palette").toLowerCase() }, h("h4", null, title), ...kids);
+  sec.append(
+    block("ref-theme", "Theme tokens", h("p", { class: "desc" }, "From ", h("code", null, "SperlichEditorTheme"), " and ", h("code", null, "SperlichInspector.uss"), ". Use them in your own EditorKit-styled tools."), tk),
+    block("ref-tint", "TintColor (26)", h("p", { class: "desc" }, "General palette for label tint, sidebar, HLine, ProgressBar, Tag, AccentColor. ", h("code", null, "None"), " means \"unset\". Click to copy."), tint26),
+    block("ref-tag", "TagColor (10)", h("p", { class: "desc" }, "Preset palette for ", h("code", null, "[Tag]"), ". Pill text is always dark."), tag10),
+    block("ref-enums", "Other enums", h("div", { class: "two" }, h("div", null,
+      tbl(["Enum", "Values"], [["ButtonSize", "Small 90px / 16px · Normal 140px / 20px · Large 220px / 28px · Full 100% (= Large as height)"], ["ButtonAnchor", "Left · Center · Right"], ["LineStyle", "Solid · Dashed · Dotted"], ["HLineAlign", "Center · Left · Right"], ["HLinePlacement", "Inline · Above"], ["InfoBoxType", "Info · Warning · Error"], ["KnobRange", "Custom · Degrees0To360 · DegreesSigned180 · Radians0To2Pi · RadiansSignedPi · Unit01"]])),
+      h("div", null, tbl(["Dimension", "UnitOfMeasure (symbol)"], units)))));
+  return sec;
+};
+
+const byName = (x, y) => x.name.localeCompare(y.name, "en", { sensitivity: "base" });
+const build = () => {
+  const counts = {}; ATTRS.forEach(a => counts[a.g] = (counts[a.g] || 0) + 1);
+  const start = gettingStarted(); const startSec = h("section", { class: "grp", id: "g-start", "data-group": "start" }, start); sectionsEl.append(startSec);
+  navEl.append(h("div", { class: "nav-group" }, "Overview"), h("a", { href: "#start", class: "sub", "data-t": "start" }, "Getting started"));
+
+  for (const g of GROUPS) {
+    const sec = h("section", { class: "grp", id: "g-" + g.id, "data-group": g.id });
+    sec.append(h("header", null, h("h3", null, g.title), h("p", null, g.blurb)));
+    navEl.append(h("div", { class: "nav-group", "data-navgrp": g.id }, g.title));
+    const navLinks = [];
+    for (const a of ATTRS.filter(x => x.g === g.id).sort(byName)) {
+      const card = h("article", { class: "card", id: "a-" + a.id, "data-s": [a.name, a.alias || "", a.desc, (a.targets || []).join(" "), g.title].join(" ").toLowerCase().replace(/<[^>]+>/g, "") });
+      card.append(h("h4", null, a.g === "types" ? a.name : `[${a.name}]`, a.alias ? h("span", { class: "al" }, `/ [${a.alias}]`) : null,
+        (a.targets || []).map(t => h("span", { class: "chip" }, t)), a.multi ? h("span", { class: "chip multi", title: "AllowMultiple" }, "stackable") : null,
+        h("a", { class: "perma", href: "#a-" + a.id, "aria-label": "Link" }, "#")));
+      card.append(h("div", { class: "sigs" }, a.sig.map(s => h("code", null, s))), h("p", { class: "desc", html: a.desc }));
+      if (a.notes) { const ul = h("ul", { class: "notes" }); a.notes.forEach(n => ul.append(h("li", { html: n }))); card.append(ul); }
+      card.append(h("div", { class: "demo-grid" }, h("div", null, h("div", { class: "pane-lbl" }, "C#"), codeBox(a.code)), h("div", null, h("div", { class: "pane-lbl" }, "Inspector"), a.demo())));
+      sec.append(card);
+      navLinks.push(h("a", { href: "#a-" + a.id, "data-t": a.id, "data-s": card.dataset.s }, a.name.replace(/<.*>/, "")));
+    }
+    navEl.append(...navLinks);
+    sectionsEl.append(sec);
+  }
+  sectionsEl.append(reference());
+  navEl.append(h("div", { class: "nav-group" }, "Reference"), ...[["ref-theme", "Theme tokens"], ["ref-tint", "TintColor"], ["ref-tag", "TagColor"], ["ref-enums", "Other enums"]].map(([id, t]) => h("a", { href: "#" + id, class: "sub", "data-t": id }, t)));
+  document.getElementById("statAttr").textContent = ATTRS.length;
+};
+build();
+
+/* ============================================================
+   Search, scroll-spy, hero wiring
+   ============================================================ */
+const q = document.getElementById("q");
+function applyFilter() {
+  const term = q.value.trim().toLowerCase(); let any = false;
+  document.querySelectorAll("section.grp").forEach(sec => {
+    let vis = 0;
+    sec.querySelectorAll(".card").forEach(c => { const m = !term || (c.dataset.s || "").includes(term); c.style.display = m ? "" : "none"; if (m) vis++; });
+    sec.style.display = vis ? "" : "none"; if (vis) any = true;
+    const gid = sec.dataset.group; const ng = navEl.querySelector(`[data-navgrp="${gid}"]`); if (ng) ng.style.display = vis ? "" : "none";
+  });
+  navEl.querySelectorAll("a[data-s]").forEach(a => a.style.display = !term || a.dataset.s.includes(term) ? "" : "none");
+  document.getElementById("empty").style.display = any ? "none" : "block";
+}
+q.addEventListener("input", applyFilter);
+document.addEventListener("keydown", e => { if (e.key === "/" && document.activeElement !== q && !/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) { e.preventDefault(); q.focus(); } });
+
+const links = [...navEl.querySelectorAll("a[href^='#']")], map = new Map(links.map(a => [a.getAttribute("href").slice(1), a]));
+const io = new IntersectionObserver(es => {
+  es.forEach(e => { if (e.isIntersecting) { links.forEach(l => l.classList.remove("on")); const l = map.get(e.target.id); if (l) { l.classList.add("on"); const r = l.getBoundingClientRect(), nr = navEl.getBoundingClientRect(); if (r.top < nr.top || r.bottom > nr.bottom) navEl.scrollTop += r.top - nr.top - nr.height / 2; } } });
+}, { rootMargin: "-10% 0px -80% 0px" });
+document.querySelectorAll("article.card").forEach(c => io.observe(c));
+
+const pt = document.getElementById("playToggle"); pt.classList.add("si-tog");
+Play.bind(v => { pt.classList.toggle("on", v); pt.setAttribute("aria-checked", String(v)); });
+const flipPlay = () => Play.set(!Play.on);
+pt.addEventListener("click", flipPlay); pt.addEventListener("keydown", e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); flipPlay(); } });
+document.getElementById("copyInstall").addEventListener("click", e => copyText(document.getElementById("installUrl").textContent, e.currentTarget));
+const side = document.getElementById("side");
+document.getElementById("menuBtn").addEventListener("click", () => side.classList.toggle("open"));
+navEl.addEventListener("click", e => { if (e.target.closest("a")) side.classList.remove("open"); });
+if (location.hash) requestAnimationFrame(() => document.getElementById(location.hash.slice(1))?.scrollIntoView());
+</script>
+</body>
+</html>

@@ -101,7 +101,24 @@ namespace Sperlich.EditorKit {
 				if (innerGui == null) {
 					Editor capturedEditor = cachedEditor;
 					innerGui = new IMGUIContainer(() => {
-						if (capturedEditor != null && capturedEditor.target != null) capturedEditor.OnInspectorGUI();
+						if (capturedEditor != null && capturedEditor.target != null) {
+							bool prevHierarchy = EditorGUIUtility.hierarchyMode;
+							EditorGUIUtility.hierarchyMode = false;
+							EditorGUILayout.BeginVertical();
+							try {
+								if (capturedEditor is MaterialEditor matEditor) {
+									matEditor.serializedObject.Update();
+									using (new EditorGUI.DisabledScope((matEditor.target.hideFlags & HideFlags.NotEditable) != 0)) {
+										if (matEditor.PropertiesGUI()) matEditor.PropertiesChanged();
+									}
+								} else {
+									capturedEditor.OnInspectorGUI();
+								}
+							} finally {
+								EditorGUILayout.EndVertical();
+								EditorGUIUtility.hierarchyMode = prevHierarchy;
+							}
+						}
 					});
 				}
 				inner.Add(innerGui);

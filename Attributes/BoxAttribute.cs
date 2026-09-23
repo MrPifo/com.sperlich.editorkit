@@ -6,7 +6,9 @@ namespace Sperlich.EditorKit {
 	/// <summary>
 	/// Starts a visual box in a <see cref="SInspectorAttribute"/> inspector. The first field carrying this
 	/// attribute opens the box; every following field is drawn inside it until the next <c>[Box]</c>, the
-	/// next <c>[Header]</c>, or an explicit <see cref="EndGroupAttribute"/>. Boxes do not nest.
+	/// next <c>[Header]</c>, or an explicit <see cref="EndGroupAttribute"/> (put on the first field that
+	/// should be outside again — no new box needed). Boxes do not nest; use <see cref="SubBoxAttribute"/>
+	/// for a group inside a box.
 	///
 	/// <para><see cref="ConditionalAttribute"/> for <c>UNITY_EDITOR</c> — stripped from player builds, no
 	/// <c>#if</c> needed at call sites.</para>
@@ -49,9 +51,15 @@ namespace Sperlich.EditorKit {
 		public float SidebarB { get; }
 		public float SidebarA { get; }
 
+		/// <summary>Name of a member (field, property or parameterless method) returning a <c>Color</c> or
+		/// <see cref="Sperlich.EditorKit.TintColor"/> for the sidebar. Overrides the static sidebar colour and
+		/// is re-read while the inspector is open, e.g. to colour the box by an enum value.</summary>
+		public string SidebarMember { get; }
+
 		public BoxAttribute(string label = null, bool collapsable = false, bool expanded = true, bool readOnly = false,
 			string sidebarColor = null, TintColor sidebarTint = TintColor.None,
-			float sidebarR = -1f, float sidebarG = 0f, float sidebarB = 0f, float sidebarA = 1f) {
+			float sidebarR = -1f, float sidebarG = 0f, float sidebarB = 0f, float sidebarA = 1f, string sidebarMember = null) {
+			SidebarMember = sidebarMember;
 			Label = label;
 			Collapsable = collapsable;
 			Expanded = expanded;

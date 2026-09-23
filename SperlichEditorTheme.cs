@@ -22,7 +22,13 @@ namespace Sperlich.EditorKit {
 		public static readonly Color ButtonBg = new Color(0.22f, 0.22f, 0.22f);
 		public static readonly Color ButtonHoverBg = new Color(0.28f, 0.28f, 0.28f);
 		public static readonly Color ButtonBorder = new Color(1f, 1f, 1f, 0.11f);
-		public static readonly Color ButtonAccent = new Color(96f / 255f, 165f / 255f, 250f / 255f);
+		public static readonly Color DefaultButtonAccent = new Color(96f / 255f, 165f / 255f, 250f / 255f);
+
+		/// <summary>Set by the inspector engine while it builds an inspector with <see cref="InspectorAccentAttribute"/>.
+		/// <c>null</c> = default accent.</summary>
+		public static Color? AccentOverride;
+
+		public static Color ButtonAccent => AccentOverride ?? DefaultButtonAccent;
 		public static readonly Color ToggleOnBg = new Color(59f / 255f, 130f / 255f, 246f / 255f);
 		public static readonly Color ToggleOffBg = new Color(0.23f, 0.23f, 0.23f);
 

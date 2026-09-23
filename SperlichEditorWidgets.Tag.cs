@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UIElements;
 
@@ -20,6 +21,13 @@ namespace Sperlich.EditorKit {
 			};
 			SetRadius(pill, 8);
 			return pill;
+		}
+
+		/// <summary>Appends tag pills after the control of a field row (after a suffix, before inline buttons).</summary>
+		public static void AttachTagPills(VisualElement row, IEnumerable<(string label, Color color)> tags) {
+			if (row == null || tags == null) return;
+			VisualElement host = ControlHost(row);
+			foreach ((string label, Color color) in tags) host.Add(CreateTagPill(label, color));
 		}
 
 		/// <summary>Convenience overload for the <see cref="TagColor"/> preset palette.</summary>

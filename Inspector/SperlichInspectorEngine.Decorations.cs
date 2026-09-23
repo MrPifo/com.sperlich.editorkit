@@ -21,16 +21,6 @@ namespace Sperlich.EditorKit {
 
 			if (meta.ReadOnly) SperlichEditorWidgets.MarkReadOnly(row);
 
-			if (meta.Tags != null && meta.Tags.Count > 0) {
-				Label rowLabel = row.Q<Label>();
-				if (rowLabel != null && rowLabel.parent != null) {
-					int insertAt = rowLabel.parent.IndexOf(rowLabel) + 1;
-					foreach ((string label, Color color) in meta.Tags) {
-						rowLabel.parent.Insert(insertAt++, SperlichEditorWidgets.CreateTagPill(label, color));
-					}
-				}
-			}
-
 			Color? resolvedTint = null;
 			if (!string.IsNullOrEmpty(meta.TintColorHtml) && ColorUtility.TryParseHtmlString(meta.TintColorHtml, out Color htmlTint)) {
 				resolvedTint = htmlTint;
@@ -76,6 +66,8 @@ namespace Sperlich.EditorKit {
 					result = WrapWithUnitCompanion(row, prop, meta);
 				}
 			}
+
+			if (meta.Tags != null && meta.Tags.Count > 0) SperlichEditorWidgets.AttachTagPills(row, meta.Tags);
 
 			if (meta.InlineButtons != null && meta.InlineButtons.Count > 0) {
 				var btns = new List<(string label, string icon, Action click)>();

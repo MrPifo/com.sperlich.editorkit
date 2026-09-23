@@ -51,7 +51,9 @@ instead of clashing with Unity's default UI.
 | `[SRow]` | field | lay adjacent scalar fields on one horizontal line |
 | `[SMinMax(min, max)]` | Vector2 / Vector2Int | dual-handle from–to range slider |
 | `[Box(label, collapsable, expanded, readOnly)]` | field | wrap this field and the following ones in a box; run ends at the next `[Box]` / `[Header]` / `[EndGroup]`. No nesting. |
-| `[EndGroup]` | field | close the current `[Box]` early |
+| `[EndGroup]` | field | close the current `[Box]` (and an open `[SubBox]`) — put it on the first field that should be outside again; no new box needed |
+| `[SubBox(label, collapsable, expanded, sidebarColor, sidebarTint)]` | field | smaller box nested inside a `[Box]` (or standalone); run ends at the next `[SubBox]` / `[EndSubBox]` or where the surrounding `[Box]` ends. No nesting. |
+| `[EndSubBox]` | field | close the current `[SubBox]` — put it on the first field after the group; fields stay in the outer `[Box]` |
 | `[HLine(label, color, style)]` | field | separator line above the field (`Solid` / `Dashed` / `Dotted`), stacks |
 | `[SReadOnly]` | field | draw the field disabled |
 | `[TintColor(color, background)]` | field | tint the label (and optionally the input background) |
@@ -65,9 +67,9 @@ instead of clashing with Unity's default UI.
 | `[EnableIf(member, values…)]` / `[DisableIf(member, values…)]` | field | same condition grammar as `[ShowIf]`/`[HideIf]`, but greys the field out instead of hiding it |
 | `[Required(message)]` | object reference | red edge flag + inline error while the value is `None` |
 | `[InfoBox(message, type, visibleIf)]` | field | info/warning/error help box above the field; stacks; optional live `visibleIf` condition (truthy check) |
-| `[Tag(label, color)]` | field | small colored pill next to the label; stacks; `color` is a `TagColor` preset |
+| `[Tag(label, color)]` | field | small colored pill after the field; stacks; `color` is a `TagColor` preset |
 | `[Percent(valueMin, valueMax)]` | float | editable 0-100% field; the serialized value stays in `[valueMin, valueMax]` (default 0..1) |
-| `[Knob(min, max, diameter)]` / `[Knob(KnobRange, diameter)]` | int / float | rotary dial; `KnobRange` presets cover 0..360°, -180..180°, 0..2π, -π..π, 0..1 |
+| `[Knob(min, max, diameter)]` / `[Knob(KnobRange, Diameter = n)]` | int / float | rotary dial; `KnobRange` presets cover 0..360°, -180..180°, 0..2π, -π..π, 0..1 |
 | `[Stepper(step, min, max)]` | int / float | `[-] [value] [+]`; shift-click steps 10x |
 | `[TabGroup(tab, group)]` | field | fields sharing `group` become one tab bar, one tab per distinct `tab` name (first-seen order); fields need not be contiguous. Selected tab persists per type. |
 | `[Expandable(defaultExpanded)]` | object reference | chevron unfolds the assigned asset's own inspector inline below the field |

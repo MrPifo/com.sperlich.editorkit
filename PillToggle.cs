@@ -18,7 +18,7 @@ namespace Sperlich.EditorKit {
 		private bool isHovered;
 
 		public PillToggle(bool value, Color? onBg = null, Color? offBg = null) {
-			this.onBg = onBg ?? SperlichEditorTheme.ToggleOnBg;
+			this.onBg = onBg ?? SperlichEditorTheme.AccentOverride ?? SperlichEditorTheme.ToggleOnBg;
 			this.offBg = offBg ?? SperlichEditorTheme.ToggleOffBg;
 
 			pill = new VisualElement();

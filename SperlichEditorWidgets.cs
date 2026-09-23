@@ -51,6 +51,49 @@ namespace Sperlich.EditorKit {
 
 		public static VisualElement Spacer(int height) => new VisualElement { style = { height = height } };
 
+		/// <summary>Subtle border for hand-built input fields (dropdowns) that lights up in the accent colour on hover, matching the hover/focus border of the native fields in the Sperlich inspector.</summary>
+		public static void ApplyFieldHoverBorder(VisualElement field, Color accent) {
+			field.style.borderTopWidth = 1;
+			field.style.borderBottomWidth = 1;
+			field.style.borderLeftWidth = 1;
+			field.style.borderRightWidth = 1;
+			SetBorderColor(field, SperlichEditorTheme.BorderSubtle);
+			ApplyColorTransition(field, 100, "background-color", "border-color");
+			Color hover = new Color(accent.r, accent.g, accent.b, 0.55f);
+			field.RegisterCallback<MouseEnterEvent>(_ => SetBorderColor(field, hover));
+			field.RegisterCallback<MouseLeaveEvent>(_ => SetBorderColor(field, SperlichEditorTheme.BorderSubtle));
+		}
+
+		/// <summary>Keeps the accent border on the focused native input field (text, number, enum, object, ...) under
+		/// <paramref name="root"/> for as long as it has focus, also while the pointer is elsewhere. Set inline from the
+		/// focus events, because the USS <c>:focus</c> rule does not reliably reach these fields.</summary>
+		public static void EnableFocusAccent(VisualElement root, Color? accent = null) {
+			Color color = accent ?? SperlichEditorTheme.ButtonAccent;
+			VisualElement focused = null;
+
+			void Clear() {
+				if (focused == null) return;
+				focused.style.borderTopColor = StyleKeyword.Null;
+				focused.style.borderBottomColor = StyleKeyword.Null;
+				focused.style.borderLeftColor = StyleKeyword.Null;
+				focused.style.borderRightColor = StyleKeyword.Null;
+				focused = null;
+			}
+
+			root.RegisterCallback<FocusInEvent>(evt => {
+				Clear();
+				VisualElement input = null;
+				for (var p = evt.target as VisualElement; p != null && p != root; p = p.hierarchy.parent) {
+					if (p.name == "unity-text-input" || p.ClassListContains("unity-base-field__input")) { input = p; break; }
+					if (p.ClassListContains("unity-base-field")) { input = p.Q(className: "unity-base-field__input"); break; }
+				}
+				if (input == null) return;
+				SetBorderColor(input, color);
+				focused = input;
+			});
+			root.RegisterCallback<FocusOutEvent>(_ => Clear());
+		}
+
 		/// <summary>Registriert eine kurze USS-Transition für die genannten Style-Properties (z.B. "background-color", "border-color", "left") — sorgt dafür, dass Hover-/State-Wechsel weich überblenden statt zu springen.</summary>
 		public static void ApplyColorTransition(VisualElement element, int durationMs, params string[] properties) {
 			var props = new List<StylePropertyName>();
@@ -100,7 +143,11 @@ namespace Sperlich.EditorKit {
 			el.style.scale = new StyleScale(new Scale(Vector3.one));
 
 			bool hovering = false, pressed = false;
-			void Apply() => el.style.scale = new StyleScale(new Scale(Vector3.one * (pressed ? 0.94f : hovering ? 1.03f : 1f)));
+			void Apply() {
+				float width = el.resolvedStyle.width;
+				float lift = width > 0f ? Mathf.Min(0.03f, 4f / width) : 0.03f;
+				el.style.scale = new StyleScale(new Scale(Vector3.one * (pressed ? 0.94f : hovering ? 1f + lift : 1f)));
+			}
 			el.RegisterCallback<MouseEnterEvent>(_ => { hovering = true; Apply(); });
 			el.RegisterCallback<MouseLeaveEvent>(_ => { hovering = false; pressed = false; Apply(); });
 			el.RegisterCallback<MouseDownEvent>(_ => { pressed = true; Apply(); });
@@ -408,6 +455,14 @@ namespace Sperlich.EditorKit {
 
 		/// <summary>Selbstgezeichneter, per Drag bedienbarer Fortschrittsbalken für ein Float-SerializedProperty — ersetzt Unitys nativen Slider (dessen interne Bauteile sich zwischen Unity-Versionen ändern) durch ein voll kontrolliertes, im Sperlich-Stil eingefärbtes Element. Ruf die zurückgegebene refresh-Action nach externen Wertänderungen auf.</summary>
 		public static (VisualElement track, Action refresh) CreateDraggableBar(SerializedProperty floatProp, float min, float max, Color accent, int height = 5) {
+			return CreateDraggableBar(() => floatProp.floatValue, value => {
+				floatProp.floatValue = value;
+				floatProp.serializedObject.ApplyModifiedProperties();
+			}, min, max, accent, height);
+		}
+
+		/// <summary>Same draggable bar for a value that is not a SerializedProperty. <paramref name="set"/> gets the dragged value.</summary>
+		public static (VisualElement track, Action refresh) CreateDraggableBar(Func<float> get, Action<float> set, float min, float max, Color accent, int height = 5) {
 			var track = new VisualElement { pickingMode = PickingMode.Position };
 			track.style.height = height;
 			track.style.backgroundColor = SperlichEditorTheme.BgDark;
@@ -426,7 +481,7 @@ namespace Sperlich.EditorKit {
 			track.RegisterCallback<MouseLeaveEvent>(_ => track.style.backgroundColor = SperlichEditorTheme.BgDark);
 
 			void Refresh() {
-				float t = max > min ? Mathf.InverseLerp(min, max, floatProp.floatValue) : 0f;
+				float t = max > min ? Mathf.InverseLerp(min, max, get()) : 0f;
 				fill.style.width = Length.Percent(Mathf.Clamp01(t) * 100f);
 			}
 
@@ -434,8 +489,7 @@ namespace Sperlich.EditorKit {
 				float width = track.resolvedStyle.width;
 				if (width <= 0f) return;
 				float t = Mathf.Clamp01(localX / width);
-				floatProp.floatValue = Mathf.Lerp(min, max, t);
-				floatProp.serializedObject.ApplyModifiedProperties();
+				set(Mathf.Lerp(min, max, t));
 				Refresh();
 			}
 
@@ -481,7 +535,7 @@ namespace Sperlich.EditorKit {
 			field.style.height = 22;
 			field.style.flexGrow = 1;
 			SetRadius(field, 3);
-			ApplyColorTransition(field, 100, "background-color");
+			ApplyFieldHoverBorder(field, accentColor);
 			SetHoverCursor(field, MouseCursor.Link);
 			field.RegisterCallback<MouseEnterEvent>(_ => field.style.backgroundColor = Color.Lerp(SperlichEditorTheme.BgDark, Color.white, 0.06f));
 			field.RegisterCallback<MouseLeaveEvent>(_ => field.style.backgroundColor = SperlichEditorTheme.BgDark);
@@ -766,7 +820,7 @@ namespace Sperlich.EditorKit {
 			field.style.height = 22;
 			field.style.flexGrow = 1;
 			SetRadius(field, 3);
-			ApplyColorTransition(field, 100, "background-color");
+			ApplyFieldHoverBorder(field, accentColor);
 			SetHoverCursor(field, MouseCursor.Link);
 			field.RegisterCallback<MouseEnterEvent>(_ => field.style.backgroundColor = Color.Lerp(SperlichEditorTheme.BgDark, Color.white, 0.06f));
 			field.RegisterCallback<MouseLeaveEvent>(_ => field.style.backgroundColor = SperlichEditorTheme.BgDark);
@@ -1010,7 +1064,7 @@ namespace Sperlich.EditorKit {
 			field.style.height = 20;
 			field.style.flexGrow = 1;
 			SetRadius(field, 3);
-			ApplyColorTransition(field, 100, "background-color");
+			ApplyFieldHoverBorder(field, accentColor);
 			SetHoverCursor(field, MouseCursor.Link);
 			field.RegisterCallback<MouseEnterEvent>(_ => field.style.backgroundColor = Color.Lerp(SperlichEditorTheme.BgDark, Color.white, 0.06f));
 			field.RegisterCallback<MouseLeaveEvent>(_ => field.style.backgroundColor = SperlichEditorTheme.BgDark);

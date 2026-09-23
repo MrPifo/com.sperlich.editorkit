@@ -98,6 +98,11 @@ namespace Sperlich.EditorKit {
 			/// <summary>Set on the field carrying <c>[EndGroup]</c> — closes an open box before this field.</summary>
 			public bool EndGroup;
 
+			/// <summary>Set on the field that STARTS a <c>[SubBox]</c> run.</summary>
+			public SubBoxAttribute SubBox;
+			/// <summary>Set on the field carrying <c>[EndSubBox]</c> — closes an open sub-box before this field.</summary>
+			public bool EndSubBox;
+
 			/// <summary><c>[ShowIf]</c> / <c>[HideIf]</c> condition; <c>null</c> = field always visible.</summary>
 			public VisCondition Visibility;
 
@@ -266,6 +271,9 @@ namespace Sperlich.EditorKit {
 			if (f.GetCustomAttribute<SRowAttribute>() is { } srow) meta.RowGroup = srow.Group ?? string.Empty;
 
 			if (f.GetCustomAttribute<SMinMaxAttribute>() is { } mm) {
+				if (f.FieldType != typeof(Vector2) && f.FieldType != typeof(Vector2Int)) {
+					Debug.LogWarning($"[SMinMax] on {f.DeclaringType?.Name}.{f.Name} is ignored: it needs a Vector2 or Vector2Int field. Use [Range] to limit a single {f.FieldType.Name}.");
+				}
 				meta.HasMinMax = true;
 				meta.MinMaxLow = Mathf.Min(mm.Min, mm.Max);
 				meta.MinMaxHigh = Mathf.Max(mm.Min, mm.Max);
@@ -339,6 +347,8 @@ namespace Sperlich.EditorKit {
 
 			if (f.GetCustomAttribute<BoxAttribute>() is { } box) meta.Box = box;
 			if (f.GetCustomAttribute<EndGroupAttribute>() != null) meta.EndGroup = true;
+			if (f.GetCustomAttribute<SubBoxAttribute>() is { } subBox) meta.SubBox = subBox;
+			if (f.GetCustomAttribute<EndSubBoxAttribute>() != null) meta.EndSubBox = true;
 
 			if (f.GetCustomAttribute<ShowIfAttribute>() is { } showIf) {
 				meta.Visibility = new MemberMeta.VisCondition { Member = showIf.Member, Values = showIf.Values, Hide = false };
