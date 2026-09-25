@@ -24,6 +24,9 @@ namespace Sperlich.EditorKit {
 			public bool ShowInPlayMode;
 			public bool ShowInEditMode;
 			public bool Done;
+			/// <summary>[ShowField] outside a row group: woven in between the serialized fields of its declaring
+			/// type by declaration order (<see cref="FlushInFieldOrder"/>) instead of going to the end.</summary>
+			public FieldInfo FieldInOrder;
 		}
 
 		private const BindingFlags InstanceMembers =
@@ -64,6 +67,7 @@ namespace Sperlich.EditorKit {
 					HLines = captured.HLines,
 					ShowInPlayMode = captured.ShowInPlayMode,
 					ShowInEditMode = captured.ShowInEditMode,
+					FieldInOrder = captured.IsField && string.IsNullOrEmpty(captured.RowGroup) && captured.Box == null ? (FieldInfo)captured.Member : null,
 					Build = () => !string.IsNullOrEmpty(captured.RowGroup)
 						? BuildLiveDisplayCell(captured, so, targetResolver)
 						: BuildLiveDisplayRow(captured, so, targetResolver),
@@ -80,22 +84,35 @@ namespace Sperlich.EditorKit {
 			foreach (PendingEmit pe in pending) {
 				if (pe.Done) continue;
 				bool hit = (before != null && pe.Before == before) || (after != null && pe.After == after);
-				if (!hit) continue;
-				if (pe.HLines != null) {
-					foreach (var hl in pe.HLines) {
-						Color c = SperlichEditorWidgets.ResolveColor(hl.colorHtml, hl.tint) ?? SperlichEditorTheme.BorderStrong;
-						target.Add(SperlichEditorWidgets.CreateSeparatorLine(hl.label, c, hl.style, hl.align, hl.placement));
-					}
-				}
-				VisualElement el = pe.Build();
-				if (el != null) {
-					if (pe.ShowInPlayMode || pe.ShowInEditMode) {
-						ApplyVisibilityCondition(el, null, so, pe.ShowInPlayMode, pe.ShowInEditMode);
-					}
-					target.Add(el);
-				}
-				pe.Done = true;
+				if (hit) EmitPending(pe, target, so);
 			}
+		}
+
+		/// <summary>Emits every not-yet-emitted [ShowField] declared before <paramref name="next"/> in the same
+		/// type (field metadata tokens follow declaration order), so it lands where it is declared.</summary>
+		private static void FlushInFieldOrder(List<PendingEmit> pending, VisualElement target, SerializedObject so, FieldInfo next) {
+			if (next == null) return;
+			foreach (PendingEmit pe in pending) {
+				if (pe.Done || pe.FieldInOrder == null || pe.FieldInOrder.DeclaringType != next.DeclaringType) continue;
+				if (pe.FieldInOrder.MetadataToken < next.MetadataToken) EmitPending(pe, target, so);
+			}
+		}
+
+		private static void EmitPending(PendingEmit pe, VisualElement target, SerializedObject so) {
+			if (pe.HLines != null) {
+				foreach (var hl in pe.HLines) {
+					Color c = SperlichEditorWidgets.ResolveColor(hl.colorHtml, hl.tint) ?? SperlichEditorTheme.BorderStrong;
+					target.Add(SperlichEditorWidgets.CreateSeparatorLine(hl.label, c, hl.style, hl.align, hl.placement));
+				}
+			}
+			VisualElement el = pe.Build();
+			if (el != null) {
+				if (pe.ShowInPlayMode || pe.ShowInEditMode) {
+					ApplyVisibilityCondition(el, null, so, pe.ShowInPlayMode, pe.ShowInEditMode);
+				}
+				target.Add(el);
+			}
+			pe.Done = true;
 		}
 
 		/// <summary>Emits the leftover pending items (declaration order, unpinned or unresolved pins) at the
@@ -218,6 +235,15 @@ namespace Sperlich.EditorKit {
 
 		private static VisualElement CreateLiveValueElement(SperlichInspectorPlan.ShowMemberMeta sm, SerializedObject so, Func<object[]> targetResolver) {
 			Color? customColor = SperlichEditorWidgets.ResolveColor(sm.ColorHex, sm.Tint);
+
+			if (sm.ProgressBar is { } pb) {
+				float ReadBarValue() => ReadRawShowValue(sm, so, targetResolver) is IConvertible c ? Convert.ToSingle(c) : pb.Min;
+				var (barEl, setValue, _, _) = SperlichEditorWidgets.CreateProgressBar(ReadBarValue(), pb.Min, pb.Max,
+					SperlichEditorWidgets.ResolveColor(pb.Color, pb.Tint) ?? Accent, pb.Height <= 0 ? 18 : pb.Height, pb.Segmented, pb.ShowValue, pb.Percent);
+				barEl.style.flexGrow = 1;
+				barEl.schedule.Execute(() => setValue(ReadBarValue())).Every(sm.PollMs);
+				return barEl;
+			}
 
 			if (sm.Badge) {
 				var badge = new Label("—") {

@@ -12,10 +12,41 @@ namespace Sperlich.EditorKit {
 		/// inspector inline below it. Uses <see cref="Editor.CreateEditor"/>; falls back to
 		/// <see cref="IMGUIContainer"/> for a type that has no UI Toolkit <c>CreateInspectorGUI</c>.</summary>
 		public static VisualElement CreateExpandableField(SerializedProperty prop, Type objectType, bool defaultOpen, string label, Color accent) {
+			VisualElement objField = CreateObjectField(prop, objectType, true);
+			return BuildExpandable(prop, objField, () => prop.objectReferenceValue, defaultOpen, label, accent);
+		}
+
+		/// <summary>Same as <see cref="CreateExpandableField"/> for an Addressables <c>AssetReference</c> field
+		/// (detected by type name, so this package needs no Addressables reference). The object field shows the
+		/// referenced asset; picking one writes its GUID. The asset is edited inline like any expandable object.</summary>
+		public static VisualElement CreateExpandableAssetReferenceField(SerializedProperty prop, Type assetType, bool defaultOpen, string label, Color accent) {
+			SerializedProperty guidProp = prop.FindPropertyRelative("m_AssetGUID");
+			var objField = new ObjectField { objectType = assetType ?? typeof(UnityEngine.Object), allowSceneObjects = false };
+
+			UnityEngine.Object Resolve() {
+				string path = AssetDatabase.GUIDToAssetPath(guidProp.stringValue);
+				return string.IsNullOrEmpty(path) ? null : AssetDatabase.LoadAssetAtPath(path, objField.objectType);
+			}
+
+			objField.SetValueWithoutNotify(Resolve());
+			objField.RegisterValueChangedCallback(evt => {
+				string guid = evt.newValue == null ? "" : AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(evt.newValue));
+				guidProp.serializedObject.Update();
+				guidProp.stringValue = guid;
+				guidProp.serializedObject.ApplyModifiedProperties();
+			});
+			objField.TrackPropertyValue(guidProp, _ => objField.SetValueWithoutNotify(Resolve()));
+
+			return BuildExpandable(guidProp, objField, Resolve, defaultOpen, label, accent);
+		}
+
+		static VisualElement BuildExpandable(SerializedProperty prop, VisualElement objField, Func<UnityEngine.Object> getTarget, bool defaultOpen, string label, Color accent) {
+			UnityEngine.Object host = prop.serializedObject.targetObject;
+			string prefKey = "Sperlich.Section/" + (host != null ? host.GetType().Name : "x") + "/expandable/" + prop.propertyPath;
+			defaultOpen = EditorPrefs.GetBool(prefKey, defaultOpen);
+
 			var wrap = new VisualElement();
 			var col = new SperlichFieldColumn(150f);
-
-			VisualElement objField = CreateObjectField(prop, objectType, true);
 			objField.style.flexGrow = 1;
 
 			// A lone chevron next to an object field reads as "just another foldout" — spell out what it
@@ -58,7 +89,7 @@ namespace Sperlich.EditorKit {
 
 			void RebuildBody() {
 				body.Clear();
-				UnityEngine.Object target = prop.objectReferenceValue;
+				UnityEngine.Object target = getTarget();
 				if (target == null) {
 					body.Add(new Label("Nothing assigned.") { style = { fontSize = 10, color = SperlichEditorTheme.TextMuted, unityFontStyleAndWeight = FontStyle.Italic } });
 					return;
@@ -97,7 +128,11 @@ namespace Sperlich.EditorKit {
 
 				var inner = new VisualElement { style = { paddingLeft = 6, paddingRight = 6, paddingTop = 4, paddingBottom = 6 } };
 				VisualElement innerGui = null;
-				try { innerGui = cachedEditor.CreateInspectorGUI(); } catch (Exception e) { Debug.LogException(e); }
+				if (cachedEditor is not MaterialEditor) {
+					// InspectorElement binds its fields to the embedded object and keeps the outer inspector's Bind
+					// from rebinding them to the host object (which would show the host's fields, or nothing).
+					try { innerGui = new InspectorElement(cachedEditor); } catch (Exception e) { Debug.LogException(e); }
+				}
 				if (innerGui == null) {
 					Editor capturedEditor = cachedEditor;
 					innerGui = new IMGUIContainer(() => {
@@ -128,6 +163,7 @@ namespace Sperlich.EditorKit {
 
 			void SetExpanded(bool value) {
 				expanded = value;
+				EditorPrefs.SetBool(prefKey, expanded);
 				arrow.text = expanded ? "▾" : "▸";
 				toggleText.text = expanded ? "Close" : "Edit";
 				body.style.display = expanded ? DisplayStyle.Flex : DisplayStyle.None;

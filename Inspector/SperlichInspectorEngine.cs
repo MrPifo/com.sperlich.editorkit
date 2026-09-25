@@ -39,6 +39,17 @@ namespace Sperlich.EditorKit {
 
 		/// <summary>Builds the whole inspector body for <paramref name="serializedObject"/> of runtime type
 		/// <paramref name="targetType"/>. The caller wraps this (outer margins, scroll preservation).</summary>
+		/// <summary>True for an Addressables <c>AssetReference</c> type (matched by name). <paramref name="referenced"/> is the
+		/// <c>T</c> of <c>AssetReferenceT&lt;T&gt;</c>, or <c>UnityEngine.Object</c> for a plain <c>AssetReference</c>.</summary>
+		private static bool TryGetAssetReferenceType(Type fieldType, out Type referenced) {
+			referenced = typeof(UnityEngine.Object);
+			for (Type t = fieldType; t != null; t = t.BaseType) {
+				if (t.IsGenericType && t.Name.StartsWith("AssetReferenceT")) referenced = t.GetGenericArguments()[0];
+				if (t.Name == "AssetReference") return true;
+			}
+			return false;
+		}
+
 		public static VisualElement Build(SerializedObject serializedObject, Type targetType) {
 			var root = new VisualElement {
 				style = {
@@ -100,6 +111,8 @@ namespace Sperlich.EditorKit {
 			int activeSubBoxEnd = -1;
 
 			for (int i = 0; i < members.Count; i++) {
+				// Before closing a box: a [ShowField] declared after the box's last field still belongs in it.
+				FlushInFieldOrder(pending, target, so, members[i].Meta?.Field);
 				if (activeBoxEnd == i) { boxBody = container; target = container; activeBoxEnd = -1; activeSubBoxEnd = -1; }
 				if (activeSubBoxEnd == i) { target = boxBody; activeSubBoxEnd = -1; }
 
@@ -345,6 +358,12 @@ namespace Sperlich.EditorKit {
 			// [Expandable] -> object field with the assigned asset's own inspector foldable inline below it.
 			if (meta != null && meta.IsExpandable && prop.propertyType == SerializedPropertyType.ObjectReference) {
 				return OverrideRow(SperlichEditorWidgets.CreateExpandableField(prop, meta.Field?.FieldType, meta.ExpandableDefaultOpen, label, Accent), prop);
+			}
+
+			// [Expandable] on an Addressables AssetReference -> same inline editor for the referenced asset.
+			if (meta != null && meta.IsExpandable && prop.propertyType == SerializedPropertyType.Generic
+			    && TryGetAssetReferenceType(meta.Field?.FieldType, out Type referencedType)) {
+				return OverrideRow(SperlichEditorWidgets.CreateExpandableAssetReferenceField(prop, referencedType, meta.ExpandableDefaultOpen, label, Accent), prop);
 			}
 
 			// [Scene] -> Build-Settings scene dropdown (string name / int build index).

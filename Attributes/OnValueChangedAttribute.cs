@@ -16,6 +16,12 @@ namespace Sperlich.EditorKit {
 		/// <summary>Name of the callback method on the declaring object.</summary>
 		public string Method { get; }
 
+		/// <summary>
+		/// On an object-reference field: also fire when the referenced asset's own serialized data changes
+		/// (e.g. an inline ScriptableObject edited via <see cref="ExpandableAttribute"/>).
+		/// </summary>
+		public bool Deep { get; set; }
+
 		public OnValueChangedAttribute(string method) => Method = method;
 	}
 }

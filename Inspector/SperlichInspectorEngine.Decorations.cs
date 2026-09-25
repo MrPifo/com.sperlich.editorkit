@@ -175,7 +175,7 @@ namespace Sperlich.EditorKit {
 			var prev = new object[targets.Length];
 			for (int i = 0; i < targets.Length; i++) prev[i] = targets[i] != null ? SafeGet(fi, targets[i]) : null;
 
-			row.TrackPropertyValue(prop, _ => {
+			void Fire() {
 				for (int i = 0; i < targets.Length; i++) {
 					if (targets[i] == null) continue;
 					object oldV = prev[i];
@@ -186,7 +186,28 @@ namespace Sperlich.EditorKit {
 					}
 				}
 				so.Update();
+			}
+
+			// Deep: also watch the referenced asset's own serialized data; re-attach when the reference changes.
+			bool deep = meta.OnValueChangedDeep && prop.propertyType == SerializedPropertyType.ObjectReference;
+			VisualElement deepTracker = null;
+
+			void TrackReferencedAsset() {
+				// Own hidden element per asset: removing it drops the old tracker, and it never shares a binding with the row.
+				deepTracker?.RemoveFromHierarchy();
+				deepTracker = null;
+				UnityEngine.Object asset = prop.objectReferenceValue;
+				if (asset == null) return;
+				deepTracker = new VisualElement { style = { display = DisplayStyle.None } };
+				row.Add(deepTracker);
+				deepTracker.TrackSerializedObjectValue(new SerializedObject(asset), _ => Fire());
+			}
+
+			row.TrackPropertyValue(prop, _ => {
+				Fire();
+				if (deep) TrackReferencedAsset();
 			});
+			if (deep) TrackReferencedAsset();
 		}
 
 		private static object SafeGet(FieldInfo fi, object target) {

@@ -92,6 +92,8 @@ namespace Sperlich.EditorKit {
 
 			/// <summary>Callback method names from <c>[OnValueChanged]</c>; <c>null</c> = none.</summary>
 			public List<string> OnValueChangedMethods;
+			/// <summary>Any <c>[OnValueChanged(Deep = true)]</c>: also react to edits inside the referenced asset.</summary>
+			public bool OnValueChangedDeep;
 
 			/// <summary>Set on the field that STARTS a <c>[Box]</c> run.</summary>
 			public BoxAttribute Box;
@@ -197,6 +199,8 @@ namespace Sperlich.EditorKit {
 			public List<(string label, string colorHtml, TintColor tint, LineStyle style, HLineAlign align, HLinePlacement placement)> HLines;
 			public bool ShowInPlayMode;
 			public bool ShowInEditMode;
+			/// <summary>[ProgressBar] on a [ShowField] field: drawn as a polled bar instead of a text value.</summary>
+			public ProgressBarAttribute ProgressBar;
 		}
 
 		private static readonly Dictionary<Type, SperlichInspectorPlan> Cache = new();
@@ -343,6 +347,7 @@ namespace Sperlich.EditorKit {
 
 			foreach (OnValueChangedAttribute ov in f.GetCustomAttributes<OnValueChangedAttribute>(true)) {
 				(meta.OnValueChangedMethods ??= new()).Add(ov.Method);
+				if (ov.Deep) meta.OnValueChangedDeep = true;
 			}
 
 			if (f.GetCustomAttribute<BoxAttribute>() is { } box) meta.Box = box;
@@ -422,6 +427,7 @@ namespace Sperlich.EditorKit {
 				PollMs = Mathf.Max(50, sf.PollMs), MetadataToken = f.MetadataToken,
 				ShowInPlayMode = f.GetCustomAttribute<ShowInPlayModeAttribute>() != null,
 				ShowInEditMode = f.GetCustomAttribute<ShowInEditModeAttribute>() != null,
+				ProgressBar = f.GetCustomAttribute<ProgressBarAttribute>(),
 			});
 		}
 

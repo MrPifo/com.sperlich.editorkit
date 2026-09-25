@@ -62,7 +62,7 @@ instead of clashing with Unity's default UI.
 | `[Unit(custom)]` / `[Unit(unit)]` / `[Unit(unit, displayAs)]` | numeric field | unit suffix, plus an optional read-only converted companion row |
 | `[ProgressBar(min, max, color, height, minMember, maxMember, segmented, showValue, percent)]` | int / float | read-only fill bar tracking the value; `percent: true` shows `50%` instead of `value / max` |
 | `[Scene(useFullPath)]` | string / int | Build-Settings scene picker (name / path / build index) |
-| `[OnValueChanged(method)]` | field | call `()`, `(T new)` or `(T old, T new)` on every change; stacks |
+| `[OnValueChanged(method)]` | field | call `()`, `(T new)` or `(T old, T new)` on every change; stacks; `Deep = true` also fires on edits inside the referenced asset |
 | `[ShowIf(member, values…)]` / `[HideIf(member, values…)]` | field | show / hide the field from a live condition on another member — no values = truthy, one-or-more values = equals-any, `[Flags]` driver = contains |
 | `[EnableIf(member, values…)]` / `[DisableIf(member, values…)]` | field | same condition grammar as `[ShowIf]`/`[HideIf]`, but greys the field out instead of hiding it |
 | `[Required(message)]` | object reference | red edge flag + inline error while the value is `None` |
@@ -72,7 +72,7 @@ instead of clashing with Unity's default UI.
 | `[Knob(min, max, diameter)]` / `[Knob(KnobRange, Diameter = n)]` | int / float | rotary dial; `KnobRange` presets cover 0..360°, -180..180°, 0..2π, -π..π, 0..1 |
 | `[Stepper(step, min, max)]` | int / float | `[-] [value] [+]`; shift-click steps 10x |
 | `[TabGroup(tab, group)]` | field | fields sharing `group` become one tab bar, one tab per distinct `tab` name (first-seen order); fields need not be contiguous. Selected tab persists per type. |
-| `[Expandable(defaultExpanded)]` | object reference | chevron unfolds the assigned asset's own inspector inline below the field |
+| `[Expandable(defaultExpanded)]` | object reference, `AssetReference` | chevron unfolds the assigned asset's own inspector inline below the field |
 
 ### Methods & live displays
 

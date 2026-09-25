@@ -954,9 +954,11 @@ public Vector2 spawnRange = new(2f, 8f);`,
 });
 
 A("expandable", "layout", "Expandable", {
-  targets: ["object reference"], sig: ["[Expandable(bool defaultExpanded = false)]"],
-  desc: "Unfolds the assigned asset's own inspector inline below the field. Edit a ScriptableObject or component without leaving the parent inspector.",
-  code: `[Expandable] public BalanceData config;`,
+  targets: ["object reference", "AssetReference"], sig: ["[Expandable(bool defaultExpanded = false)]"],
+  desc: "Unfolds the assigned asset's own inspector inline below the field. Edit a ScriptableObject or component without leaving the parent inspector. Also works on an Addressables AssetReference / AssetReferenceT<T>: the field shows the referenced asset and picking one stores its GUID.",
+  notes: ["The open/closed state is remembered per type and field. <code>defaultExpanded</code> only sets the state before the first toggle."],
+  code: `[Expandable] public BalanceData config;
+[Expandable] public AssetReferenceT<BalanceData> addressableConfig;`,
   demo: () => {
     let open = false; const body = h("div", { class: "si-expbody", style: "display:none" }, h("div", { class: "hd" }, "BalanceData"),
       h("div", { class: "bd" }, W.row("Base Damage", W.num({ value: 12, int: true })), W.row("Crit Chance", W.slider({ min: 0, max: 1, value: .15 }))));
@@ -1126,10 +1128,10 @@ A("stepper", "controls", "Stepper", {
 });
 
 A("progressbar", "controls", "ProgressBar", {
-  targets: ["int", "float"],
+  targets: ["int", "float", "[ShowField] field"],
   sig: ["[ProgressBar(float min, float max, string color = null, int height = 18, string minMember = null,", "             string maxMember = null, bool segmented = false, bool showValue = true, bool percent = false,", "             TintColor tint = None)]"],
   desc: "A read-only bar that follows the value. The fill updates on change. Only a dynamic range (<code>minMember</code> / <code>maxMember</code>) is polled.",
-  notes: ["A value above the max turns the fill red. <code>percent: true</code> shows <code>50%</code> instead of <code>value / max</code>.", "Use a normal <code>[Range]</code> slider when you want to edit the value."],
+  notes: ["A value above the max turns the fill red. <code>percent: true</code> shows <code>50%</code> instead of <code>value / max</code>.", "Use a normal <code>[Range]</code> slider when you want to edit the value.", "Together with <code>[ShowField]</code> it shows a non-serialized value (polled, never marks the object dirty). <code>minMember</code> / <code>maxMember</code> are ignored there."],
   code: `[ProgressBar(0, 100)] public float health = 65f;
 [ProgressBar(0, 100, percent: true, tint: TintColor.Green)] public float xp = 40f;
 [ProgressBar(0, 10, segmented: true, height: 14)] public int stamina = 6;
@@ -1239,9 +1241,9 @@ A("showineditmode", "logic", "ShowInEditMode", {
 });
 
 A("onvaluechanged", "logic", "OnValueChanged", {
-  targets: ["field"], multi: true, sig: ["[OnValueChanged(string method)]"],
+  targets: ["field"], multi: true, sig: ["[OnValueChanged(string method, bool Deep = false)]"],
   desc: "Calls a method on the same object whenever the field changes in the inspector. Stackable.",
-  notes: ["Accepted signatures, in this order: <code>()</code>, <code>(T newValue)</code>, <code>(T oldValue, T newValue)</code>. <code>T</code> is the field type or <code>object</code>.", "A missing method logs a warning to the console."],
+  notes: ["Accepted signatures, in this order: <code>()</code>, <code>(T newValue)</code>, <code>(T oldValue, T newValue)</code>. <code>T</code> is the field type or <code>object</code>.", "<code>Deep = true</code> on an object-reference field also fires when the referenced asset's own data changes (for example a ScriptableObject edited through <code>[Expandable]</code>). It only runs while this inspector is open.", "A missing method logs a warning to the console."],
   code: `[OnValueChanged(nameof(Rebuild))]
 public int segments = 8;
 
@@ -1307,10 +1309,11 @@ A("showproperty", "methods", "ShowProperty", {
 
 A("showfield", "methods", "ShowField", {
   targets: ["non-serialized field"], sig: ["[ShowField(string label = null, int pollMs = 250)]"],
-  desc: "Shows a <code>[NonSerialized]</code> field as a read-only live value. It is polled and never written back.",
-  notes: ["On a serialized field it does nothing. The normal row already shows it."],
+  desc: "Shows a <code>[NonSerialized]</code> field as a read-only live value, at its declaration position among the serialized fields (inside the same <code>[Box]</code> as the field before it). It is polled and never written back.",
+  notes: ["On a serialized field it does nothing. The normal row already shows it.", "Add <code>[ProgressBar]</code> to show a number as a bar instead of text."],
   code: `[NonSerialized, ShowField] public int frameCount;
-[NonSerialized, ShowField("Last Hit", 100)] public float lastHitTime;`,
+[NonSerialized, ShowField("Last Hit", 100)] public float lastHitTime;
+[NonSerialized, ShowField, ProgressBar(0, 1)] public float loadProgress;`,
   demo: () => { const a = h("span", { class: "si-val" }, "0"), b = h("span", { class: "si-val" }, "0.00"); let f = 0;
     setInterval(() => { f += 15; a.textContent = f; b.textContent = (f / 60).toFixed(2); }, 250);
     return W.panel(W.row("Frame Count", a), W.row("Last Hit", b)); },
