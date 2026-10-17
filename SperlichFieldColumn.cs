@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -76,10 +77,24 @@ namespace Sperlich.EditorKit {
 			return row;
 		}
 
+		/// <summary>Like <see cref="Row(string, VisualElement, int)"/>, plus the prefab-override bar, bold label and
+		/// Apply/Revert menu for <paramref name="prop"/> — for a hand-built control bound to that property.</summary>
+		public VisualElement Row(string label, VisualElement control, SerializedProperty prop, int indent = 0) {
+			return Row(label, control, new[] { prop }, indent);
+		}
+
+		/// <summary>Row whose control edits several properties (Margins, Spacing, …). Shows the override bar
+		/// while any of them is overridden.</summary>
+		public VisualElement Row(string label, VisualElement control, IReadOnlyList<SerializedProperty> props, int indent = 0) {
+			VisualElement row = Row(label, control, indent);
+			SperlichPrefabOverride.Attach(row, row.Q<Label>(), props);
+			return row;
+		}
+
 		/// <summary>Zeile mit einem Float-Range-Slider (Sperlich-Design C: dünne Schiene + Griff + Drag-/Tipp-Feld).</summary>
 		public VisualElement Slider(SerializedProperty prop, string label = null, float min = 0f, float max = 1f, int indent = 0) {
 			if (prop == null) return new VisualElement();
-			return Row(label ?? prop.displayName, SperlichEditorWidgets.CreateRangeSlider(prop, min, max, intMode: false), indent);
+			return Row(label ?? prop.displayName, SperlichEditorWidgets.CreateRangeSlider(prop, min, max, intMode: false), prop, indent);
 		}
 
 		/// <summary>Zeile mit einem Integer-Slider und integriertem Zahlen-Eingabefeld (snappt nur auf ganze Zahlen, unterstützt Int- und Float-Properties).</summary>
@@ -90,13 +105,13 @@ namespace Sperlich.EditorKit {
 		/// <summary>Zeile mit einem Integer-Range-Slider (snappt auf ganze Zahlen + Tick-Marken, unterstützt Int- und Float-Properties).</summary>
 		public VisualElement SliderInt(SerializedProperty prop, string label = null, int min = 0, int max = 10, int indent = 0) {
 			if (prop == null) return new VisualElement();
-			return Row(label ?? prop.displayName, SperlichEditorWidgets.CreateRangeSlider(prop, min, max, intMode: true), indent);
+			return Row(label ?? prop.displayName, SperlichEditorWidgets.CreateRangeSlider(prop, min, max, intMode: true), prop, indent);
 		}
 
 		/// <summary>Zeile mit einem Drag-Zahlenfeld und optionaler Min/Max-Begrenzung.</summary>
 		public VisualElement DragNumber(SerializedProperty prop, string label = null, float min = float.MinValue, float max = float.MaxValue, int indent = 0) {
 			if (prop == null) return new VisualElement();
-			return Row(label ?? prop.displayName, SperlichEditorWidgets.CreateDragNumberField(prop, 1f, min, max), indent);
+			return Row(label ?? prop.displayName, SperlichEditorWidgets.CreateDragNumberField(prop, 1f, min, max), prop, indent);
 		}
 
 		/// <summary>Zeile um ein <see cref="SerializedProperty"/>. Das interne Feld-Label wird auf die
@@ -104,12 +119,17 @@ namespace Sperlich.EditorKit {
 		/// so als Ziehgriff nutzbar). Für aufklappbare/verschachtelte Properties stattdessen <see cref="Raw"/>.</summary>
 		public VisualElement Property(SerializedProperty prop, string label = null, int indent = 0) {
 			if (prop == null) return new VisualElement();
+			VisualElement row = BuildPropertyRow(prop, label, indent);
+			// PropertyField rows build their label late, so only hand-built rows get the bold label from here.
+			Label rowLabel = row.childCount > 0 && row[0] is PropertyField ? null : row.Q<Label>();
+			SperlichPrefabOverride.Attach(row, rowLabel, prop);
+			return row;
+		}
 
+		private VisualElement BuildPropertyRow(SerializedProperty prop, string label, int indent) {
 			if (SperlichEditorWidgets.TryGetRange(prop, out float rMin, out float rMax)) {
-				if (prop.propertyType == SerializedPropertyType.Integer) {
-					return Slider(prop, label, (int)rMin, (int)rMax, indent);
-				}
-				return Slider(prop, label, rMin, rMax, indent);
+				bool intMode = prop.propertyType == SerializedPropertyType.Integer;
+				return Row(label ?? prop.displayName, SperlichEditorWidgets.CreateRangeSlider(prop, rMin, rMax, intMode), indent);
 			}
 
 			// plain number fields get the drag-to-scrub grip
@@ -222,7 +242,13 @@ namespace Sperlich.EditorKit {
 				pf.UnregisterCallback(cb);
 			};
 			pf.RegisterCallback(cb);
-			return pf;
+
+			// A PropertyField rebuilds its children and would drop a bar added straight into it, so the
+			// override bar hangs off a plain wrapper.
+			var wrap = new VisualElement();
+			wrap.Add(pf);
+			SperlichPrefabOverride.Attach(wrap, null, prop);
+			return wrap;
 		}
 
 		private float ColumnWidth(int indent) => Mathf.Max(0f, LabelWidth - indent * IndentStep);

@@ -45,6 +45,9 @@ instead of clashing with Unity's default UI.
 - Custom editors can reuse the rows: `SperlichInspectorEngine.BuildChildRows(property, column, include)`
   builds every child field of a nested class or `[SerializeReference]` object with full attribute
   support; `SperlichInspectorEngine.ApplyTheme(root)` adds the stylesheet.
+- Hand-built rows get prefab overrides too: `SperlichFieldColumn.Property / Slider / DragNumber / Raw`
+  attach them automatically, `col.Row(label, control, prop)` (or a list of props for a cluster row) does it
+  for a custom control, and `SperlichPrefabOverride.Attach(row, label, prop)` works on any element.
 - Own value types: `SperlichInspectorEngine.RegisterFieldControl(type, (property, field) => control)`
   gives every field of that type a normal labelled row (override bar, Copy/Paste included).
   `SperlichEditorWidgets.CreateModeValueField(modeProperty, modes, buildBody)` builds a value with

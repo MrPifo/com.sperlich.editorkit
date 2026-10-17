@@ -1580,7 +1580,10 @@ namespace Sperlich.EditorKit {
 					field = pf;
 				}
 			}
-			return CreateCompactField(caption, field, captionAbove);
+			VisualElement cell = CreateCompactField(caption, field, captionAbove);
+			// No bar: the cell sits inside a row, which carries the bar for the whole cluster.
+			if (prop != null) SperlichPrefabOverride.Attach(cell, cell.Q<Label>(), prop, showBar: false);
+			return cell;
 		}
 
 		/// <summary>Kompaktes Feld für Feld-Cluster mit benutzerdefiniertem Control.</summary>

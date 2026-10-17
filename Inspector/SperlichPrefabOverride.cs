@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using UnityEditor;
 using UnityEditor.UIElements;
 using UnityEngine;
@@ -41,9 +42,22 @@ namespace Sperlich.EditorKit {
 			Undo.undoRedoPerformed += () => PrefabStateChanged?.Invoke();
 		}
 
-		public static void Attach(VisualElement row, Label label, SerializedProperty property, int barLeft = -6) {
-			SerializedProperty prop = property.Copy();
-			SerializedObject so = prop.serializedObject;
+		public static void Attach(VisualElement row, Label label, SerializedProperty property, int barLeft = -6, bool showBar = true) {
+			if (property == null) return;
+			Attach(row, label, new[] { property }, barLeft, showBar);
+		}
+
+		/// <summary>One override indicator for a row that edits several properties at once (a Margins or
+		/// Spacing cluster, …). The row counts as overridden while any of them is. Copy/Paste is only offered
+		/// for a single property. <paramref name="showBar"/> = false keeps only the bold label, for cells inside
+		/// a row that already has its own bar.</summary>
+		public static void Attach(VisualElement row, Label label, IReadOnlyList<SerializedProperty> properties, int barLeft = -6, bool showBar = true) {
+			var props = new List<SerializedProperty>();
+			foreach (SerializedProperty p in properties) {
+				if (p != null) props.Add(p.Copy());
+			}
+			if (props.Count == 0) return;
+			SerializedObject so = props[0].serializedObject;
 
 			// Absolute-positioned bar in the left gutter: no effect on the row's own layout, so these rows
 			// stay aligned with the PropertyField-fallback rows that get Unity's own bar.
@@ -59,34 +73,21 @@ namespace Sperlich.EditorKit {
 			// Appended last (not SendToBack): it sits entirely in the left gutter and ignores picking, so
 			// paint order is irrelevant — and keeping it last means it never shifts the row's real child
 			// indices, which row post-processors rely on.
-			row.Add(bar);
+			if (showBar) row.Add(bar);
 
+			// No SerializedObject.Update() here: on a script it always runs, and doing that from a value-change
+			// callback or the poll below while a field is being dragged makes the inspector rebind mid-drag,
+			// which drops the drag. The inspector keeps the SerializedObject current on its own.
 			bool IsOverridden() {
-				try {
-					so.UpdateIfRequiredOrScript();
-					if (prop.prefabOverride && !prop.isDefaultOverride) return true;
-				} catch {
-					return false; // object destroyed, or the property vanished after Undo / a structure change
-				}
-				// Container properties (managed reference, nested struct, custom-drawer type like SEvent):
-				// the override flag usually sits on a changed leaf, not the container — scan the subtree.
-				if (prop.hasChildren && (prop.propertyType == SerializedPropertyType.ManagedReference
-				                         || prop.propertyType == SerializedPropertyType.Generic)) {
-					try {
-						SerializedProperty p = prop.Copy();
-						SerializedProperty end = prop.GetEndProperty();
-						int guard = 0;
-						bool enter = true;
-						while (p.NextVisible(enter) && !SerializedProperty.EqualContents(p, end) && guard++ < 512) {
-							enter = true;
-							if (p.prefabOverride && !p.isDefaultOverride) return true;
-						}
-					} catch { /* iteration raced a structural change */ }
+				foreach (SerializedProperty p in props) {
+					if (IsPropertyOverridden(p)) return true;
 				}
 				return false;
 			}
 
 			void Refresh() {
+				// Leave the row alone while a slider / drag field holds the pointer; the next poll catches up.
+				if (row.panel != null && row.panel.GetCapturingElement(PointerId.mousePointerId) != null) return;
 				bool overridden = IsOverridden();
 				bar.style.display = overridden ? DisplayStyle.Flex : DisplayStyle.None;
 				if (label != null) label.style.unityFontStyleAndWeight = overridden ? FontStyle.Bold : FontStyle.Normal;
@@ -119,10 +120,11 @@ namespace Sperlich.EditorKit {
 				}
 
 				// A native PropertyField brings Unity's own Copy/Paste on its label.
-				if (!hostsPropertyField) {
-					SperlichPropertyClipboard.AppendCopyPaste(evt.menu, prop, row.enabledInHierarchy, AfterChange);
+				if (!hostsPropertyField && props.Count == 1) {
+					SperlichPropertyClipboard.AppendCopyPaste(evt.menu, props[0], row.enabledInHierarchy, AfterChange);
 				}
 
+				try { so.UpdateIfRequiredOrScript(); } catch { return; /* object destroyed */ }
 				if (!IsOverridden()) return;
 
 				UnityEngine.Object target = so.targetObject;
@@ -131,12 +133,16 @@ namespace Sperlich.EditorKit {
 
 				evt.menu.AppendAction($"Apply to Prefab '{prefabName}'", _ => {
 					if (string.IsNullOrEmpty(prefabPath)) return;
-					PrefabUtility.ApplyPropertyOverride(prop, prefabPath, InteractionMode.UserAction);
+					foreach (SerializedProperty p in props) {
+						if (IsPropertyOverridden(p)) PrefabUtility.ApplyPropertyOverride(p, prefabPath, InteractionMode.UserAction);
+					}
 					AfterChange();
 				}, DropdownMenuAction.AlwaysEnabled);
 
 				evt.menu.AppendAction("Revert", _ => {
-					PrefabUtility.RevertPropertyOverride(prop, InteractionMode.UserAction);
+					foreach (SerializedProperty p in props) {
+						if (IsPropertyOverridden(p)) PrefabUtility.RevertPropertyOverride(p, InteractionMode.UserAction);
+					}
 					AfterChange();
 				}, DropdownMenuAction.AlwaysEnabled);
 
@@ -162,11 +168,35 @@ namespace Sperlich.EditorKit {
 				Refresh();
 			});
 			row.RegisterCallback<DetachFromPanelEvent>(_ => PrefabStateChanged -= OnPrefabStateChanged);
-			row.TrackPropertyValue(prop, _ => Refresh());
+			foreach (SerializedProperty p in props) row.TrackPropertyValue(p, _ => Refresh());
 			// Safety net for changes that don't fire TrackPropertyValue (external Revert, Undo, Apply from
 			// the component header). schedule pauses automatically while the inspector is closed.
 			row.schedule.Execute(Refresh).Every(400);
 			Refresh();
+		}
+
+		private static bool IsPropertyOverridden(SerializedProperty prop) {
+			try {
+				if (prop.prefabOverride && !prop.isDefaultOverride) return true;
+			} catch {
+				return false; // the property vanished after Undo / a structure change
+			}
+			// Container properties (managed reference, nested struct, custom-drawer type like SEvent):
+			// the override flag usually sits on a changed leaf, not the container — scan the subtree.
+			if (prop.hasChildren && (prop.propertyType == SerializedPropertyType.ManagedReference
+			                         || prop.propertyType == SerializedPropertyType.Generic)) {
+				try {
+					SerializedProperty p = prop.Copy();
+					SerializedProperty end = prop.GetEndProperty();
+					int guard = 0;
+					bool enter = true;
+					while (p.NextVisible(enter) && !SerializedProperty.EqualContents(p, end) && guard++ < 512) {
+						enter = true;
+						if (p.prefabOverride && !p.isDefaultOverride) return true;
+					}
+				} catch { /* iteration raced a structural change */ }
+			}
+			return false;
 		}
 
 		private static bool InsideGroupBody(VisualElement row) {
