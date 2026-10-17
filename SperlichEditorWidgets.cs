@@ -150,8 +150,9 @@ namespace Sperlich.EditorKit {
 			}
 			el.RegisterCallback<MouseEnterEvent>(_ => { hovering = true; Apply(); });
 			el.RegisterCallback<MouseLeaveEvent>(_ => { hovering = false; pressed = false; Apply(); });
-			el.RegisterCallback<MouseDownEvent>(_ => { pressed = true; Apply(); });
-			el.RegisterCallback<MouseUpEvent>(_ => { pressed = false; Apply(); });
+			// TrickleDown: a Button's Clickable stops PointerDown before bubble/target handlers would see it.
+			el.RegisterCallback<PointerDownEvent>(_ => { pressed = true; Apply(); }, TrickleDown.TrickleDown);
+			el.RegisterCallback<PointerUpEvent>(_ => { pressed = false; Apply(); }, TrickleDown.TrickleDown);
 		}
 
 		public static Button MakeButton(string text, int width, Action onClick, bool isAccent = false) {

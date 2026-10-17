@@ -35,11 +35,20 @@ instead of clashing with Unity's default UI.
   `[CustomEditor]`, so `SText`, `FlexContainer`, `Transform`, … keep their own inspectors.
 - Without `[SInspector]` the class renders exactly like Unity's default inspector.
 - Multi-object editing and prefab overrides (blue bar, bold label, Apply/Revert menu) work
-  as usual. `[Header]`, `[Space]`, `[Tooltip]`, `[Range]`, `[TextArea]`/`[Multiline]` are
-  honoured. Collections render as a Sperlich card (reorder handle, per-element override bar);
+  as usual. `[Header]`, `[Space]`, `[Tooltip]`, `[Range]`, `[Min]`, `[TextArea]`/`[Multiline]` are
+  honoured. `[ShowIf]`/`[HideIf]` also work inside nested classes and `[SerializeReference]` objects
+  (the driver is looked up next to the field). Collections render as a Sperlich card (reorder handle, per-element override bar);
   a `[SerializeReference]` list's **+** opens a type picker and appends a fresh instance. A
   single `[SerializeReference]` field and types with their own `PropertyDrawer` use a themed
   `PropertyField` wrapped with the override bar / Apply-Revert menu.
+- Right-click any row for Copy / Paste (Unity's own property clipboard, so it works across inspectors).
+- Custom editors can reuse the rows: `SperlichInspectorEngine.BuildChildRows(property, column, include)`
+  builds every child field of a nested class or `[SerializeReference]` object with full attribute
+  support; `SperlichInspectorEngine.ApplyTheme(root)` adds the stylesheet.
+- Own value types: `SperlichInspectorEngine.RegisterFieldControl(type, (property, field) => control)`
+  gives every field of that type a normal labelled row (override bar, Copy/Paste included).
+  `SperlichEditorWidgets.CreateModeValueField(modeProperty, modes, buildBody)` builds a value with
+  several edit modes: a mode button after the value plus a **Mode** entry in the right-click menu.
 - The "Script" reference row is hidden by default (like Odin). Bring it back per type with
   `[SInspector(showScript: true)]` or globally via **Tools ▸ Sperlich ▸ SInspector ▸ Show
   Script Field**.
@@ -64,7 +73,7 @@ instead of clashing with Unity's default UI.
 | `[Scene(useFullPath)]` | string / int | Build-Settings scene picker (name / path / build index) |
 | `[OnValueChanged(method)]` | field | call `()`, `(T new)` or `(T old, T new)` on every change; stacks; `Deep = true` also fires on edits inside the referenced asset |
 | `[ShowIf(member, values…)]` / `[HideIf(member, values…)]` | field | show / hide the field from a live condition on another member — no values = truthy, one-or-more values = equals-any, `[Flags]` driver = contains |
-| `[EnableIf(member, values…)]` / `[DisableIf(member, values…)]` | field | same condition grammar as `[ShowIf]`/`[HideIf]`, but greys the field out instead of hiding it |
+| `[EnableIf(member, values…)]` / `[DisableIf(member, values…)]` | field, `[SButton]`/`[ButtonGroup]` method | same condition grammar as `[ShowIf]`/`[HideIf]`, but greys the field or button out instead of hiding it |
 | `[Required(message)]` | object reference | red edge flag + inline error while the value is `None` |
 | `[InfoBox(message, type, visibleIf)]` | field | info/warning/error help box above the field; stacks; optional live `visibleIf` condition (truthy check) |
 | `[Tag(label, color)]` | field | small colored pill after the field; stacks; `color` is a `TagColor` preset |

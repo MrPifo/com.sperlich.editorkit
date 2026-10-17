@@ -34,8 +34,11 @@ namespace Sperlich.EditorKit {
 				var f = new IntegerField();
 				f.BindProperty(prop);
 				if (min > int.MinValue || max < int.MaxValue) {
+					// float.MaxValue cast to int overflows (wraps to int.MinValue) and made the clamp fight itself in an endless loop.
+					int lowest = min <= int.MinValue ? int.MinValue : (int)min;
+					int highest = max >= int.MaxValue ? int.MaxValue : (int)max;
 					f.RegisterValueChangedCallback(evt => {
-						int clamped = Mathf.Clamp(evt.newValue, (int)min, (int)max);
+						int clamped = Mathf.Clamp(evt.newValue, lowest, highest);
 						if (clamped != evt.newValue) f.value = clamped;
 					});
 				}

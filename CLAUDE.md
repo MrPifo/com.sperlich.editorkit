@@ -48,7 +48,8 @@ Editor-UI toolkit for Unity 6 (UI Toolkit). It gives every Sperlich tool one dar
 | `Inspector/SInspectorEditor.cs` | Fallback editor. Runs only when a type has no other `[CustomEditor]` |
 | `Inspector/SCollectionDrawers.cs` | Property drawers for `SDictionary` and `SHashSet` outside `[SInspector]` |
 | `Inspector/PropertyDrawerRegistry.cs` | Finds field types that have their own `PropertyDrawer` |
-| `Inspector/SperlichPrefabOverride.cs` | Prefab-override bar and Apply/Revert menu |
+| `Inspector/SperlichPrefabOverride.cs` | Prefab-override bar and the row context menu (Copy/Paste, Apply/Revert) |
+| `Inspector/SperlichPropertyClipboard.cs` | Copy/Paste through Unity's internal `UnityEditor.Clipboard` (reflection) |
 | `Editor/SInspectorMenu.cs` | `Tools ▸ Sperlich ▸ SInspector ▸ Show Script Field` |
 | `Documentation~/index.html` | Interactive attribute docs (self-contained, open in a browser) |
 
@@ -68,4 +69,4 @@ Editor-UI toolkit for Unity 6 (UI Toolkit). It gives every Sperlich tool one dar
 - **Logic:** `ShowIf`, `HideIf`, `EnableIf`, `DisableIf`, `ShowInPlayMode`/`HideInEditorMode`, `ShowInEditMode`/`HideInPlayMode`, `OnValueChanged`
 - **Methods and live values:** `SButton`, `ButtonGroup`, `InlineButton`, `ShowProperty`, `ShowField`
 - **Types:** `SDictionary<TKey, TValue>`, `SHashSet<T>`
-- **Inspector features:** collections as cards (reorder, remove), `[SerializeReference]` type picker, multi-object editing, prefab overrides, Script-row toggle
+- **Inspector features:** collections as cards (reorder, remove), `[SerializeReference]` type picker, multi-object editing, prefab overrides, Copy/Paste context menu, Script-row toggle

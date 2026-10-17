@@ -71,8 +71,9 @@ namespace Sperlich.EditorKit {
 		};
 
 		/// <summary>Horizontal segmented bar where every segment fires a method (no bound property) — the
-		/// visual pendant to <see cref="CreateFlagButtons"/>, used for <c>[ButtonGroup]</c>.</summary>
-		public static VisualElement CreateMethodButtonGroup(IList<(string label, string icon, Action click)> items, Color accent) {
+		/// visual pendant to <see cref="CreateFlagButtons"/>, used for <c>[ButtonGroup]</c>. Segments share the
+		/// hover/press feedback of <see cref="MakeButton(string, ButtonSize, ButtonSize, ButtonAnchor, Action, bool, string)"/>.</summary>
+		public static VisualElement CreateMethodButtonGroup(IList<(string label, string icon, Action click)> items) {
 			var bar = new VisualElement { style = { flexDirection = FlexDirection.Row, marginTop = 2, marginBottom = 2 } };
 			if (items == null || items.Count == 0) return bar;
 
@@ -89,15 +90,7 @@ namespace Sperlich.EditorKit {
 				seg.style.paddingLeft = 6;
 				seg.style.paddingRight = 6;
 				seg.style.marginRight = i < items.Count - 1 ? 3 : 0;
-				seg.style.borderTopWidth = 1;
-				seg.style.borderBottomWidth = 1;
-				seg.style.borderLeftWidth = 1;
-				seg.style.borderRightWidth = 1;
-				seg.style.backgroundColor = SperlichEditorTheme.ButtonBg;
-				SetBorderColor(seg, SperlichEditorTheme.ButtonBorder);
-				SetRadius(seg, 3);
-				SetHoverCursor(seg, MouseCursor.Link);
-				ApplyColorTransition(seg, 100, "background-color", "border-color");
+				ApplyNeonButtonStyle(seg);
 
 				if (!string.IsNullOrEmpty(icon)) {
 					Texture iconTex = EditorGUIUtility.IconContent(icon)?.image;
@@ -107,20 +100,15 @@ namespace Sperlich.EditorKit {
 					seg.Add(new Label(label) { pickingMode = PickingMode.Ignore, style = { fontSize = 10, unityFontStyleAndWeight = FontStyle.Bold, color = SperlichEditorTheme.TextSecondary } });
 				}
 
-				seg.RegisterCallback<MouseEnterEvent>(_ => {
-					seg.style.backgroundColor = SperlichEditorTheme.ButtonHoverBg;
-					SetBorderColor(seg, accent);
-				});
-				seg.RegisterCallback<MouseLeaveEvent>(_ => {
-					seg.style.backgroundColor = SperlichEditorTheme.ButtonBg;
-					SetBorderColor(seg, SperlichEditorTheme.ButtonBorder);
-				});
 				seg.RegisterCallback<ClickEvent>(_ => onClick?.Invoke());
-				ApplyHoverJuice(seg, "background-color", "border-color");
 
 				bar.Add(seg);
 			}
 			return bar;
 		}
+
+		[Obsolete("The accent is no longer used; segments match MakeButton. Use CreateMethodButtonGroup(items).")]
+		public static VisualElement CreateMethodButtonGroup(IList<(string label, string icon, Action click)> items, Color accent)
+			=> CreateMethodButtonGroup(items);
 	}
 }

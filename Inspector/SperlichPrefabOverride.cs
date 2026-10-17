@@ -32,6 +32,15 @@ namespace Sperlich.EditorKit {
 
 		public static void MarkGroupBody(VisualElement body) => body.AddToClassList(GroupBodyClass);
 
+		/// <summary>Raised after a prefab Apply / Revert / Undo, so every override bar can re-read its state.</summary>
+		private static event Action PrefabStateChanged;
+
+		[InitializeOnLoadMethod]
+		private static void HookPrefabEvents() {
+			PrefabUtility.prefabInstanceUpdated += _ => PrefabStateChanged?.Invoke();
+			Undo.undoRedoPerformed += () => PrefabStateChanged?.Invoke();
+		}
+
 		public static void Attach(VisualElement row, Label label, SerializedProperty property, int barLeft = -6) {
 			SerializedProperty prop = property.Copy();
 			SerializedObject so = prop.serializedObject;
@@ -53,8 +62,12 @@ namespace Sperlich.EditorKit {
 			row.Add(bar);
 
 			bool IsOverridden() {
-				try { so.UpdateIfRequiredOrScript(); } catch { return false; /* object destroyed */ }
-				if (prop.prefabOverride && !prop.isDefaultOverride) return true;
+				try {
+					so.UpdateIfRequiredOrScript();
+					if (prop.prefabOverride && !prop.isDefaultOverride) return true;
+				} catch {
+					return false; // object destroyed, or the property vanished after Undo / a structure change
+				}
 				// Container properties (managed reference, nested struct, custom-drawer type like SEvent):
 				// the override flag usually sits on a changed leaf, not the container — scan the subtree.
 				if (prop.hasChildren && (prop.propertyType == SerializedPropertyType.ManagedReference
@@ -97,15 +110,20 @@ namespace Sperlich.EditorKit {
 			// card opens its own menu and swallows the trigger event — but the populate event still trickles
 			// down through the row, so we prepend our items here in the capture phase).
 			row.RegisterCallback<ContextualMenuPopulateEvent>(evt => {
-				if (!IsOverridden()) return;
-
-				// A nested row with its own Apply/Revert scope owns this right-click — don't also offer the
+				// A nested row with its own scope owns this right-click — don't also offer Copy/Paste or the
 				// whole-collection / whole-object revert on top of the per-element one.
 				if (evt.target is VisualElement clicked && clicked != row) {
 					for (VisualElement s = clicked; s != null && s != row; s = s.hierarchy.parent) {
 						if (s.ClassListContains(OverrideScopeClass)) return;
 					}
 				}
+
+				// A native PropertyField brings Unity's own Copy/Paste on its label.
+				if (!hostsPropertyField) {
+					SperlichPropertyClipboard.AppendCopyPaste(evt.menu, prop, row.enabledInHierarchy, AfterChange);
+				}
+
+				if (!IsOverridden()) return;
 
 				UnityEngine.Object target = so.targetObject;
 				string prefabPath = PrefabUtility.GetPrefabAssetPathOfNearestInstanceRoot(target);
@@ -130,10 +148,20 @@ namespace Sperlich.EditorKit {
 			row.AddManipulator(new ContextualMenuManipulator(_ => { }));
 
 			row.AddToClassList(OverrideScopeClass);
+
+			// Apply / Revert from Unity's own Overrides menu changes the override state without touching the
+			// SerializedObject, so a cached read would keep showing the old bars until the inspector is reopened.
+			void OnPrefabStateChanged() {
+				try { so.Update(); } catch { return; /* object destroyed */ }
+				Refresh();
+			}
+
 			row.RegisterCallback<AttachToPanelEvent>(_ => {
 				bar.style.left = InsideGroupBody(row) ? Mathf.Max(barLeft, GroupBarLeft) : barLeft;
+				PrefabStateChanged += OnPrefabStateChanged;
 				Refresh();
 			});
+			row.RegisterCallback<DetachFromPanelEvent>(_ => PrefabStateChanged -= OnPrefabStateChanged);
 			row.TrackPropertyValue(prop, _ => Refresh());
 			// Safety net for changes that don't fire TrackPropertyValue (external Revert, Undo, Apply from
 			// the component header). schedule pauses automatically while the inspector is closed.

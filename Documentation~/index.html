@@ -211,9 +211,9 @@ table.ref td:first-child { font-family: var(--mono); color: #d6dbe4; white-space
 .si-btn .ic { font-size: 12px; opacity: .9; }
 .si-inl { height: 18px; margin-left: 4px; font-size: 10px; padding: 0 7px; flex: none; }
 .si-bg { display: flex; margin: 2px 0; }
-.si-bgs { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; height: 20px; padding: 0 6px; margin-right: 3px; background: var(--btn); border: 1px solid var(--btn-border); border-radius: 3px; font-size: 10px; font-weight: 700; color: var(--text-2); cursor: pointer; transition: transform .11s ease-out, background-color .1s, border-color .1s; }
+.si-bgs { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px; height: 20px; padding: 0 6px; margin-right: 3px; background: var(--btn); border: 1px solid var(--btn-border); border-radius: 3px; font-size: 10px; font-weight: 700; color: var(--text-2); cursor: pointer; transition: transform .11s ease-out, background-color .11s, border-color .11s; }
 .si-bg > .si-bgs:last-child { margin-right: 0; }
-.si-bgs:hover { background: var(--btn-hover); border-color: var(--accent); transform: scale(1.03); }
+.si-bgs:hover { background: var(--btn-hover); transform: scale(1.03); }
 .si-bgs:active { transform: scale(.94); }
 
 /* header strip, boxes */
@@ -791,7 +791,9 @@ A("sinspector", "core", "SInspector", {
     "Without <code>[SInspector]</code> the class keeps Unity's default inspector. A type with its own <code>[CustomEditor]</code> is never touched.",
     "All EditorKit attributes are <code>[Conditional(\"UNITY_EDITOR\")]</code>. Player builds drop them from the IL, so you never need <code>#if UNITY_EDITOR</code>.",
     "The \"Script\" row is hidden by default. Bring it back with <code>showScript: true</code> or <b>Tools ▸ Sperlich ▸ SInspector ▸ Show Script Field</b>.",
-    "Multi-object editing and prefab overrides work (blue bar, bold label, Apply/Revert menu). <code>[Header]</code>, <code>[Space]</code>, <code>[Tooltip]</code>, <code>[Range]</code>, <code>[TextArea]</code> and <code>[Multiline]</code> are honoured.",
+    "Multi-object editing and prefab overrides work (blue bar, bold label, Apply/Revert menu). Right-click a row to Copy or Paste its value, also to and from the default inspector. <code>[Header]</code>, <code>[Space]</code>, <code>[Tooltip]</code>, <code>[Range]</code>, <code>[Min]</code>, <code>[TextArea]</code> and <code>[Multiline]</code> are honoured.",
+    "Custom editors can reuse the rows: <code>SperlichInspectorEngine.BuildChildRows(property, column, include)</code> builds all child fields of a nested class or <code>[SerializeReference]</code> object, with every attribute. <code>SperlichInspectorEngine.ApplyTheme(root)</code> adds the stylesheet.",
+    "Own value types get a matching row with <code>SperlichInspectorEngine.RegisterFieldControl(type, (property, field) =&gt; control)</code> (call it from an <code>[InitializeOnLoad]</code> class). The control sits in the label column and gets the override bar and Copy/Paste. <code>SperlichEditorWidgets.CreateModeValueField(modeProperty, modes, buildBody)</code> builds a value with several edit modes (e.g. Constant / Range): a small mode button after the value (flat for the first mode, highlighted for the others) and a <b>Mode</b> entry in the row's right-click menu.",
     "<code>[SerializeReference]</code> lists get a type picker on <b>+</b>.",
   ],
   code: `using Sperlich.EditorKit;
@@ -1176,7 +1178,7 @@ const drvRow = (label, init, cb) => W.row(label, W.toggle(init, cb));
 A("showif", "logic", "ShowIf", {
   targets: ["field"], sig: ["[ShowIf(string member, params object[] values)]"],
   desc: "Shows the field only while a condition on another member holds. It is re-evaluated live: event-driven for a serialized driver, polled otherwise.",
-  notes: ["No values = <b>truthy</b> (true, non-zero, non-empty, non-null).", "One or more values = <b>equals any</b>.", "A <code>[Flags]</code> driver = <b>contains</b> those bits.", "The driver can be a field, property or parameterless method."],
+  notes: ["No values = <b>truthy</b> (true, non-zero, non-empty, non-null).", "One or more values = <b>equals any</b>.", "A <code>[Flags]</code> driver = <b>contains</b> those bits.", "The driver can be a field, property or parameterless method.", "Inside nested classes and <code>[SerializeReference]</code> objects the driver is looked up next to the field (same object)."],
   code: `public bool useTimer;
 [ShowIf(nameof(useTimer))] public float duration = 5f;
 
@@ -1204,16 +1206,20 @@ A("hideif", "logic", "HideIf", {
 });
 
 A("enableif", "logic", "EnableIf", {
-  targets: ["field"], sig: ["[EnableIf(string member, params object[] values)]"],
+  targets: ["field", "method"], sig: ["[EnableIf(string member, params object[] values)]"],
   desc: "Like <code>[ShowIf]</code>, but the field stays visible and is greyed out (not interactive) while the condition fails.",
+  notes: ["On an <code>[SButton]</code> or <code>[ButtonGroup]</code> method it greys out that button (or segment). A non-serialized driver, such as a private reference, is polled."],
   code: `public bool useCustomRange;
-[EnableIf(nameof(useCustomRange))] public float customMax = 20f;`,
+[EnableIf(nameof(useCustomRange))] public float customMax = 20f;
+
+GameObject spawned;
+[SButton, EnableIf(nameof(spawned))] void Despawn() { }`,
   demo: () => { const r = W.row("Custom Max", W.num({ value: 20 }), { dis: true }); return W.panel(drvRow("Use Custom Range", false, v => r.classList.toggle("dis", !v)), r); },
 });
 
 A("disableif", "logic", "DisableIf", {
-  targets: ["field"], sig: ["[DisableIf(string member, params object[] values)]"],
-  desc: "The inverse of <code>[EnableIf]</code>. The field is greyed out while the condition holds.",
+  targets: ["field", "method"], sig: ["[DisableIf(string member, params object[] values)]"],
+  desc: "The inverse of <code>[EnableIf]</code>. The field (or button) is greyed out while the condition holds.",
   code: `public bool locked = true;
 [DisableIf(nameof(locked))] public int slots = 4;`,
   demo: () => { const r = W.row("Slots", W.num({ value: 4, int: true }), { dis: true }); return W.panel(drvRow("Locked", true, v => r.classList.toggle("dis", v)), r); },
@@ -1323,7 +1329,7 @@ A("showfield", "methods", "ShowField", {
 A("sdictionary", "types", "SDictionary<TKey, TValue>", {
   targets: ["type"], sig: ["public class SDictionary<TKey, TValue> : Dictionary<TKey, TValue>, ISerializationCallbackReceiver"],
   desc: "A <code>Dictionary</code> that Unity can serialize. Two parallel lists back it and the inspector edits them. The live dictionary is rebuilt on deserialize.",
-  notes: ["Duplicate or null keys are dropped silently. The editor flags duplicates in red first.", "Collections render as a card with a count badge, drag handles, an index and a per-row remove."],
+  notes: ["Duplicate or null keys are dropped silently. The editor flags duplicates in red first.", "Collections render as a card with a count badge, drag handles, an index and a per-row remove.", "Simple values sit next to their key (<code>key → value</code>). A vector value stays next to its key while the inspector is wide enough, else it moves below the key. A class or struct value goes below its key, so its fields get the full width."],
   code: `[SInspector]
 class Loot : MonoBehaviour {
     public SDictionary<string, int> table = new();

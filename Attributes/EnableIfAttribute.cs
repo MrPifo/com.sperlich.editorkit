@@ -8,12 +8,13 @@ namespace Sperlich.EditorKit {
 	/// another member of the same object holds, in a <see cref="SInspectorAttribute"/> inspector. The field
 	/// stays visible but greyed out and non-interactive while the condition fails. Same condition grammar as
 	/// <see cref="ShowIfAttribute"/> — no values = truthy check, one or more values = equals-any /
-	/// <c>[Flags]</c>-contains-any.
+	/// <c>[Flags]</c>-contains-any. On a <see cref="SButtonAttribute"/> / <see cref="ButtonGroupAttribute"/>
+	/// method it greys out that button instead.
 	///
 	/// <code>[EnableIf(nameof(useCustomRange))] public float customMax;</code>
 	/// </summary>
 	[Conditional("UNITY_EDITOR")]
-	[AttributeUsage(AttributeTargets.Field, AllowMultiple = false, Inherited = true)]
+	[AttributeUsage(AttributeTargets.Field | AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
 	public sealed class EnableIfAttribute : Attribute {
 
 		public string Member { get; }

@@ -3,9 +3,9 @@ using System.Diagnostics;
 
 namespace Sperlich.EditorKit {
 
-	/// <summary>Inverse of <see cref="EnableIfAttribute"/> — disables the field while the condition holds.</summary>
+	/// <summary>Inverse of <see cref="EnableIfAttribute"/> — disables the field (or button) while the condition holds.</summary>
 	[Conditional("UNITY_EDITOR")]
-	[AttributeUsage(AttributeTargets.Field, AllowMultiple = false, Inherited = true)]
+	[AttributeUsage(AttributeTargets.Field | AttributeTargets.Method, AllowMultiple = false, Inherited = true)]
 	public sealed class DisableIfAttribute : Attribute {
 
 		public string Member { get; }

@@ -184,17 +184,23 @@ namespace Sperlich.EditorKit {
 
 		private static VisualElement BuildMethodButton(SperlichInspectorPlan.MethodButtonMeta mb, SerializedObject so, Func<object[]> targetResolver = null) {
 			MethodInfo m = mb.Method;
-			return SperlichEditorWidgets.MakeButton(mb.Label, mb.Size, mb.Height, mb.Anchor,
+			VisualElement button = SperlichEditorWidgets.MakeButton(mb.Label, mb.Size, mb.Height, mb.Anchor,
 				() => InvokeOnTargets(so, m, targetResolver), isAccent: false, icon: mb.Icon);
+			ApplyEnableCondition(button, mb.EnableCondition, so, dim: true);
+			return button;
 		}
 
 		private static VisualElement BuildButtonGroupBar(SperlichInspectorPlan.ButtonGroupMeta bg, SerializedObject so, Func<object[]> targetResolver = null) {
 			var items = new List<(string label, string icon, Action click)>();
-			foreach ((MethodInfo method, string label, string icon) in bg.Items) {
+			foreach ((MethodInfo method, string label, string icon, _) in bg.Items) {
 				MethodInfo m = method;
 				items.Add((label, icon, () => InvokeOnTargets(so, m, targetResolver)));
 			}
-			return SperlichEditorWidgets.CreateMethodButtonGroup(items, Accent);
+			VisualElement bar = SperlichEditorWidgets.CreateMethodButtonGroup(items);
+			for (int i = 0; i < bg.Items.Count && i < bar.childCount; i++) {
+				ApplyEnableCondition(bar[i], bg.Items[i].enableCondition, so, dim: true);
+			}
+			return bar;
 		}
 
 		private static VisualElement BuildLiveDisplayCell(SperlichInspectorPlan.ShowMemberMeta sm, SerializedObject so, Func<object[]> targetResolver) {

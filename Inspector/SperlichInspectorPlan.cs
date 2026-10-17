@@ -26,6 +26,9 @@ namespace Sperlich.EditorKit {
 			public bool HasRange;
 			public float RangeMin;
 			public float RangeMax;
+			/// <summary>Field carries Unity's <c>[Min]</c> — number fields clamp to <see cref="MinValue"/>.</summary>
+			public bool HasMin;
+			public float MinValue;
 			public bool Multiline;
 			public int MultilineRows;
 			public bool ElementTypeHasDrawer;
@@ -169,12 +172,14 @@ namespace Sperlich.EditorKit {
 			public int MetadataToken;
 			public bool ShowInPlayMode;
 			public bool ShowInEditMode;
+			/// <summary><c>[EnableIf]</c> / <c>[DisableIf]</c> on the method; <c>null</c> = always enabled.</summary>
+			public MemberMeta.VisCondition EnableCondition;
 		}
 
 		/// <summary>A set of parameterless methods sharing a <c>[ButtonGroup]</c> key — one segmented bar.</summary>
 		public sealed class ButtonGroupMeta {
 			public string Group;
-			public readonly List<(MethodInfo method, string label, string icon)> Items = new();
+			public readonly List<(MethodInfo method, string label, string icon, MemberMeta.VisCondition enableCondition)> Items = new();
 			/// <summary>Declaration token of the first method — decides where the bar is placed.</summary>
 			public int MetadataToken;
 			public bool ShowInPlayMode;
@@ -262,6 +267,11 @@ namespace Sperlich.EditorKit {
 				meta.HasRange = true;
 				meta.RangeMin = range.min;
 				meta.RangeMax = range.max;
+			}
+
+			if (f.GetCustomAttribute<MinAttribute>() is { } minAttr) {
+				meta.HasMin = true;
+				meta.MinValue = minAttr.min;
 			}
 
 			if (f.GetCustomAttribute<TextAreaAttribute>() is { } area) {
@@ -361,11 +371,7 @@ namespace Sperlich.EditorKit {
 				meta.Visibility = new MemberMeta.VisCondition { Member = hideIf.Member, Values = hideIf.Values, Hide = true };
 			}
 
-			if (f.GetCustomAttribute<EnableIfAttribute>() is { } enableIf) {
-				meta.EnableCondition = new MemberMeta.VisCondition { Member = enableIf.Member, Values = enableIf.Values, Hide = false };
-			} else if (f.GetCustomAttribute<DisableIfAttribute>() is { } disableIf) {
-				meta.EnableCondition = new MemberMeta.VisCondition { Member = disableIf.Member, Values = disableIf.Values, Hide = true };
-			}
+			meta.EnableCondition = ReadEnableCondition(f);
 
 			foreach (TagAttribute tag in f.GetCustomAttributes<TagAttribute>(true)) {
 				Color resolved = SperlichEditorWidgets.ResolveColor(tag.ColorHex, tag.Tint) ?? SperlichEditorWidgets.TagColorToColor(tag.Color);
@@ -472,6 +478,8 @@ namespace Sperlich.EditorKit {
 				return;
 			}
 
+			MemberMeta.VisCondition enableCondition = ReadEnableCondition(m);
+
 			if (sb != null) {
 				MethodButtons.Add(new MethodButtonMeta {
 					Method = m,
@@ -481,6 +489,7 @@ namespace Sperlich.EditorKit {
 					MetadataToken = m.MetadataToken,
 					ShowInPlayMode = m.GetCustomAttribute<ShowInPlayModeAttribute>() != null,
 					ShowInEditMode = m.GetCustomAttribute<ShowInEditModeAttribute>() != null,
+					EnableCondition = enableCondition,
 				});
 			}
 
@@ -495,8 +504,18 @@ namespace Sperlich.EditorKit {
 					};
 					ButtonGroups.Add(grp);
 				}
-				grp.Items.Add((m, bg.Label ?? ObjectNames.NicifyVariableName(m.Name), bg.Icon));
+				grp.Items.Add((m, bg.Label ?? ObjectNames.NicifyVariableName(m.Name), bg.Icon, enableCondition));
 			}
+		}
+
+		private static MemberMeta.VisCondition ReadEnableCondition(MemberInfo member) {
+			if (member.GetCustomAttribute<EnableIfAttribute>() is { } enableIf) {
+				return new MemberMeta.VisCondition { Member = enableIf.Member, Values = enableIf.Values, Hide = false };
+			}
+			if (member.GetCustomAttribute<DisableIfAttribute>() is { } disableIf) {
+				return new MemberMeta.VisCondition { Member = disableIf.Member, Values = disableIf.Values, Hide = true };
+			}
+			return null;
 		}
 
 		/// <summary>For a <c>List&lt;T&gt;</c> / <c>T[]</c> field this is <c>T</c>, otherwise the field type

@@ -189,7 +189,7 @@ namespace Sperlich.EditorKit {
 			}
 
 			if (hasVisibilityLogic) {
-				ApplyVisibilityCondition(sink, cond, so, playModeOnly, editModeOnly);
+				ApplyVisibilityCondition(sink, cond, so, playModeOnly, editModeOnly, m.Prop);
 				parent.Add(sink);
 			}
 			return next;
@@ -282,7 +282,7 @@ namespace Sperlich.EditorKit {
 			// sits in the inter-cell gap rather than under the previous cell.
 			SperlichPrefabOverride.Attach(cell, caption, m.Prop, barLeft: -3);
 			// The run's first member drives the whole row's visibility; later cells can hide on their own.
-			if (m.Meta?.Visibility != null) ApplyVisibilityCondition(cell, m.Meta.Visibility, m.Prop.serializedObject);
+			if (m.Meta?.Visibility != null) ApplyVisibilityCondition(cell, m.Meta.Visibility, m.Prop.serializedObject, member: m.Prop);
 			return cell;
 		}
 
@@ -318,13 +318,18 @@ namespace Sperlich.EditorKit {
 						slider.style.flexGrow = 1;
 						return slider;
 					}
-					return SperlichEditorWidgets.CreateDragNumberField(prop);
+					return CreateNumberField(prop, m.Meta);
 			}
 		}
 
 		private static VisualElement BuildRow(SperlichFieldColumn col, SerializedProperty prop, SperlichInspectorPlan.MemberMeta meta) {
 			Type declaredType = meta?.Field?.FieldType;
 			string label = meta?.CustomLabel ?? prop.displayName;
+
+			// Controls registered for a value type (RegisterFieldControl) win over every attribute and drawer.
+			if (TryBuildFieldControl(prop, meta, out VisualElement registered)) {
+				return OverrideRow(col.Row(label, registered), prop);
+			}
 
 			// [EnumToggleButtons] -> segmented (plain) / toggle bar ([Flags]). Before the generic enum branch.
 			if (meta != null && meta.EnumToggleButtons && prop.propertyType == SerializedPropertyType.Enum) {
@@ -506,7 +511,7 @@ namespace Sperlich.EditorKit {
 					VisualElement slider = SperlichEditorWidgets.CreateRangeSlider(prop, rMin, rMax, intMode, ResolveAccent(meta));
 					return OverrideRow(col.Row(label, slider), prop);
 				}
-				return OverrideRow(col.Row(label, SperlichEditorWidgets.CreateDragNumberField(prop)), prop);
+				return OverrideRow(col.Row(label, CreateNumberField(prop, meta)), prop);
 			}
 
 			// Color -> bound ColorField in a Sperlich row.
@@ -529,6 +534,12 @@ namespace Sperlich.EditorKit {
 			// SperlichFieldColumn.Property returns a bound BaseField or a native PropertyField for these,
 			// which draw Unity's own prefab-override bar + Apply/Revert menu.
 			return col.Property(prop, label);
+		}
+
+		/// <summary>Drag number field that honours Unity's <c>[Min]</c>.</summary>
+		private static VisualElement CreateNumberField(SerializedProperty prop, SperlichInspectorPlan.MemberMeta meta) {
+			float min = meta != null && meta.HasMin ? meta.MinValue : float.MinValue;
+			return SperlichEditorWidgets.CreateDragNumberField(prop, 1f, min);
 		}
 
 		private static VisualElement OverrideRow(VisualElement row, SerializedProperty prop) {
@@ -755,21 +766,51 @@ namespace Sperlich.EditorKit {
 				},
 				headerAccent, emptyText, addText);
 
-			// Rebuild policy: a change to the array *size* (add / remove / undo) rebuilds the rows at once.
-			// A change to an element *value* must NOT rebuild mid-edit — that would tear down the field the
-			// user is dragging / typing in (drag-scrub dies on the first frame). Instead we debounce: once the
-			// value edits stop for ~250 ms, one rebuild refreshes the duplicate-row warnings.
-			SerializedProperty a0 = Arr();
-			int lastCount = a0 != null ? a0.arraySize : 0;
-			double lastEditAt = -1;
-			element.TrackPropertyValue(owner.Copy(), _ => lastEditAt = EditorApplication.timeSinceStartup);
-			element.schedule.Execute(() => {
-				SerializedProperty a = Arr();
-				int n = a != null ? a.arraySize : 0;
-				if (n != lastCount) { lastCount = n; lastEditAt = -1; rebuild(); return; }
-				if (lastEditAt > 0 && EditorApplication.timeSinceStartup - lastEditAt > 0.25) { lastEditAt = -1; rebuild(); }
-			}).Every(100);
+			ScheduleCollectionRebuild(element, owner, Arr, warnDuplicates, rebuild);
 			return element;
+		}
+
+		/// <summary>
+		/// Rebuild policy for collection cards: a change to the array <i>size</i> (add / remove / undo) rebuilds
+		/// the rows at once. A value edit rebuilds only when it changes which rows are duplicates (the only
+		/// row content that depends on other rows), and never while a field inside the card has focus —
+		/// a rebuild tears down the field being typed in or drag-scrubbed.
+		/// </summary>
+		private static void ScheduleCollectionRebuild(VisualElement element, SerializedProperty tracked,
+			Func<SerializedProperty> arr, bool warnDuplicates, Action rebuild) {
+
+			string DuplicateSignature() {
+				SerializedProperty a = arr();
+				if (!warnDuplicates || a == null) return string.Empty;
+				var sb = new System.Text.StringBuilder();
+				for (int i = 0; i < a.arraySize; i++) if (IsDuplicateAt(a, i)) sb.Append(i).Append(',');
+				return sb.ToString();
+			}
+
+			bool FocusInside() => element.focusController?.focusedElement is VisualElement f && element.Contains(f);
+
+			SerializedProperty a0 = arr();
+			int lastCount = a0 != null ? a0.arraySize : 0;
+			string lastDuplicates = DuplicateSignature();
+			double lastEditAt = -1;
+			element.TrackPropertyValue(tracked.Copy(), _ => lastEditAt = EditorApplication.timeSinceStartup);
+			element.schedule.Execute(() => {
+				SerializedProperty a = arr();
+				int n = a != null ? a.arraySize : 0;
+				if (n != lastCount) {
+					lastCount = n;
+					lastEditAt = -1;
+					lastDuplicates = DuplicateSignature();
+					rebuild();
+					return;
+				}
+				if (lastEditAt < 0 || EditorApplication.timeSinceStartup - lastEditAt <= 0.25 || FocusInside()) return;
+				lastEditAt = -1;
+				string duplicates = DuplicateSignature();
+				if (duplicates == lastDuplicates) return;
+				lastDuplicates = duplicates;
+				rebuild();
+			}).Every(100);
 		}
 
 		internal static VisualElement BuildDictionaryRow(SerializedProperty prop, Color? accent = null) {
@@ -800,35 +841,74 @@ namespace Sperlich.EditorKit {
 				(i, host) => {
 					SerializedProperty k = Keys(), v = Values();
 					if (k == null || v == null || i < 0 || i >= k.arraySize || i >= v.arraySize) return;
-					var kv = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, flexGrow = 1, minWidth = 0 } };
+					SerializedProperty value = v.GetArrayElementAtIndex(i).Copy();
 					VisualElement kCtl = SperlichEditorWidgets.CompactControl(k.GetArrayElementAtIndex(i).Copy(), headerAccent);
-					kCtl.style.width = Length.Percent(42);
-					kCtl.style.flexShrink = 0;
-					kv.Add(kCtl);
-					kv.Add(new Label("→") { style = { fontSize = 10, color = SperlichEditorTheme.TextMuted, marginLeft = 4, marginRight = 4, flexShrink = 0 } });
-					VisualElement vCtl = SperlichEditorWidgets.CompactControl(v.GetArrayElementAtIndex(i).Copy(), headerAccent);
+					VisualElement vCtl = SperlichEditorWidgets.CompactControl(value, headerAccent);
 					vCtl.style.flexGrow = 1;
 					vCtl.style.minWidth = 0;
-					kv.Add(vCtl);
-					host.Add(kv);
+
+					// A class/struct value needs the full width for its own field rows, so it goes below the key.
+					if (IsCompositeValue(value)) {
+						var stack = new VisualElement { style = { flexGrow = 1, minWidth = 0 } };
+						stack.Add(kCtl);
+						vCtl.style.marginLeft = 12;
+						vCtl.style.marginTop = 2;
+						stack.Add(vCtl);
+						host.Add(stack);
+					} else {
+						var kv = new VisualElement { style = { flexDirection = FlexDirection.Row, alignItems = Align.Center, flexGrow = 1, minWidth = 0 } };
+						kCtl.style.width = Length.Percent(42);
+						kCtl.style.flexGrow = 0;
+						kCtl.style.flexShrink = 0;
+						kv.Add(kCtl);
+						var arrow = new Label("→") { style = { fontSize = 10, color = SperlichEditorTheme.TextMuted, marginLeft = 4, marginRight = 4, flexShrink = 0 } };
+						kv.Add(arrow);
+						kv.Add(vCtl);
+						host.Add(kv);
+						if (IsVectorValue(value)) StackWhenNarrow(kv, kCtl, arrow, vCtl);
+					}
 					if (IsDuplicateAt(k, i)) host.Add(DuplicateWarning("Duplicate key — dropped on serialize"));
 				},
 				headerAccent, emptyText: "Empty dictionary", addText: "+ Add");
 
-			// Same debounce as BuildArrayBackedList: structural (key-count) changes rebuild now, value edits
-			// (a key/value being typed) settle for ~250 ms before one rebuild refreshes the dup-key warnings.
-			// Rebuilding mid-edit would drop the row being changed and dispose its bound field.
-			SerializedProperty k0 = Keys();
-			int lastCount = k0 != null ? k0.arraySize : 0;
-			double lastEditAt = -1;
-			element.TrackPropertyValue(prop.Copy(), _ => lastEditAt = EditorApplication.timeSinceStartup);
-			element.schedule.Execute(() => {
-				SerializedProperty k = Keys();
-				int n = k != null ? k.arraySize : 0;
-				if (n != lastCount) { lastCount = n; lastEditAt = -1; rebuild(); return; }
-				if (lastEditAt > 0 && EditorApplication.timeSinceStartup - lastEditAt > 0.25) { lastEditAt = -1; rebuild(); }
-			}).Every(100);
+			ScheduleCollectionRebuild(element, prop, Keys, warnDuplicates: true, rebuild);
 			return element;
+		}
+
+		private static bool IsCompositeValue(SerializedProperty prop) =>
+			prop.propertyType == SerializedPropertyType.ManagedReference
+			|| (prop.propertyType == SerializedPropertyType.Generic && prop.hasVisibleChildren && !PropertyDrawerRegistry.HasCustomDrawerForName(prop.type));
+
+		private static bool IsVectorValue(SerializedProperty prop) => prop.propertyType switch {
+			SerializedPropertyType.Vector2 or SerializedPropertyType.Vector2Int
+				or SerializedPropertyType.Vector3 or SerializedPropertyType.Vector3Int
+				or SerializedPropertyType.Vector4 => true,
+			_ => false,
+		};
+
+		// Enough for the caption, drag grip and 4-6 digits per vector component.
+		private const float VectorCellWidth = 80f;
+		private const float StackedKeyMinWidth = 90f;
+
+		/// <summary>Keeps a vector value next to its key while every component still fits
+		/// <see cref="VectorCellWidth"/>; in a narrower row the vector moves below the key instead of
+		/// squeezing or wrapping its components.</summary>
+		private static void StackWhenNarrow(VisualElement row, VisualElement key, VisualElement arrow, VisualElement vector) {
+			vector.style.flexWrap = Wrap.NoWrap;
+			float needed = StackedKeyMinWidth + 20f + vector.childCount * VectorCellWidth;
+			bool? stacked = null;
+
+			row.RegisterCallback<GeometryChangedEvent>(_ => {
+				bool stack = row.resolvedStyle.width < needed;
+				if (stacked == stack) return;
+				stacked = stack;
+				row.style.flexDirection = stack ? FlexDirection.Column : FlexDirection.Row;
+				row.style.alignItems = stack ? Align.Stretch : Align.Center;
+				key.style.width = stack ? StyleKeyword.Auto : new StyleLength(Length.Percent(30));
+				arrow.style.display = stack ? DisplayStyle.None : DisplayStyle.Flex;
+				vector.style.marginLeft = stack ? 12 : 0;
+				vector.style.marginTop = stack ? 2 : 0;
+			});
 		}
 
 		private static VisualElement BuildNestedFoldout(SerializedProperty prop, string labelText = null) {

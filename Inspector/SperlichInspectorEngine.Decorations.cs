@@ -87,7 +87,7 @@ namespace Sperlich.EditorKit {
 			}
 
 			if (meta.EnableCondition != null) {
-				ApplyEnableCondition(result, meta.EnableCondition, so);
+				ApplyEnableCondition(result, meta.EnableCondition, so, member: prop);
 			}
 
 			return result;
@@ -126,14 +126,17 @@ namespace Sperlich.EditorKit {
 		// ── [EnableIf] / [DisableIf] ─────────────────────────────────────────────────
 
 		/// <summary>Enables/disables <paramref name="element"/> from a condition on another member. Same
-		/// condition grammar and event-vs-poll strategy as <see cref="ApplyVisibilityCondition"/>.</summary>
-		private static void ApplyEnableCondition(VisualElement element, SperlichInspectorPlan.MemberMeta.VisCondition cond, SerializedObject so) {
-			SerializedProperty driver = so.FindProperty(cond.Member);
+		/// condition grammar and event-vs-poll strategy as <see cref="ApplyVisibilityCondition"/>.
+		/// <paramref name="dim"/> fades the element itself, for custom-styled buttons that have no disabled look.</summary>
+		private static void ApplyEnableCondition(VisualElement element, SperlichInspectorPlan.MemberMeta.VisCondition cond, SerializedObject so, bool dim = false, SerializedProperty member = null) {
+			if (cond == null) return;
+			SerializedProperty driver = FindDriver(so, cond.Member, member);
 
 			void Update() {
 				bool match = EvaluateCondition(cond, driver, so);
 				bool enabled = cond.Hide ? !match : match; // Hide=true -> [DisableIf]: disable on match
 				element.SetEnabled(enabled);
+				if (dim) element.style.opacity = enabled ? 1f : 0.4f;
 			}
 
 			Update();
@@ -239,8 +242,8 @@ namespace Sperlich.EditorKit {
 
 		/// <summary>Toggles <paramref name="element"/>'s visibility from a condition on another member and/or play-mode state.
 		/// Event-driven when the driver is a serialized field, polled (~200 ms) otherwise.</summary>
-		private static void ApplyVisibilityCondition(VisualElement element, SperlichInspectorPlan.MemberMeta.VisCondition cond, SerializedObject so, bool playModeOnly = false, bool editModeOnly = false) {
-			SerializedProperty driver = cond != null ? so.FindProperty(cond.Member) : null;
+		private static void ApplyVisibilityCondition(VisualElement element, SperlichInspectorPlan.MemberMeta.VisCondition cond, SerializedObject so, bool playModeOnly = false, bool editModeOnly = false, SerializedProperty member = null) {
+			SerializedProperty driver = cond != null ? FindDriver(so, cond.Member, member) : null;
 
 			void Update() {
 				bool modeOk = true;
@@ -270,6 +273,21 @@ namespace Sperlich.EditorKit {
 				EditorApplication.playModeStateChanged += onPlayModeChanged;
 				element.RegisterCallback<DetachFromPanelEvent>(_ => EditorApplication.playModeStateChanged -= onPlayModeChanged);
 			}
+		}
+
+		/// <summary>Resolves a condition's driver as a sibling of <paramref name="member"/>, so conditions also work on
+		/// fields of nested classes and <c>[SerializeReference]</c> objects. Top-level members resolve as before.</summary>
+		private static SerializedProperty FindDriver(SerializedObject so, string driverName, SerializedProperty member) {
+			if (string.IsNullOrEmpty(driverName)) return null;
+			if (member != null) {
+				string path = member.propertyPath;
+				int dot = path.LastIndexOf('.');
+				if (dot > 0) {
+					SerializedProperty sibling = so.FindProperty(path.Substring(0, dot) + "." + driverName);
+					if (sibling != null) return sibling;
+				}
+			}
+			return so.FindProperty(driverName);
 		}
 
 		private static bool EvaluateCondition(SperlichInspectorPlan.MemberMeta.VisCondition cond, SerializedProperty driver, SerializedObject so) {
